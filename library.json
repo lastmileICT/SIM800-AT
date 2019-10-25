@@ -1,0 +1,21 @@
+{
+  "name": "SIM800_AT",
+  "keywords": "SIMCOM, SIM800, AT",
+  "description": "Library for sending AT commands to the SIMCOM SIM800 module",
+  "repository":
+  {
+    "type": "git",
+    "url": "https://github.com/lastmileICT/SIM800-AT"
+  },
+  "authors":
+  [
+    {
+      "name": "Connected Energy Technologies Ltd",
+      "url": "http://www.connectedenergy.net",
+      "maintainer": true
+    }
+  ],
+  "version": "0.1.0",
+  "frameworks": "*",
+  "platforms": "*"
+}
