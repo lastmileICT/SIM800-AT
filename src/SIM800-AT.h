@@ -47,7 +47,7 @@ public:
      *  @param baudRate baud rate of uart communication
      *  @param number default phone number during mobile communication
      */
-    GPRS(PinName tx, PinName rx, PinName ri, int baudRate,char *number) : gprsSerial(tx, rx) {};
+    GPRS(PinName tx, PinName rx, PinName ri, int baudRate) : gprsSerial(tx, rx) {};
 
     Serial gprsSerial;
 
