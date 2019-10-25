@@ -45,7 +45,6 @@ public:
      *  @param rx  uart receive pin to communicate with GPRS module
      *  @param ri  ring indicator goes low for 120ms when an SMS is received
      *  @param baudRate baud rate of uart communication
-     *  @param number default phone number during mobile communication
      */
     GPRS(PinName tx, PinName rx, PinName ri, int baudRate) : gprsSerial(tx, rx) {};
 
