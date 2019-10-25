@@ -449,20 +449,21 @@ int GPRS::getSMS(char* message)
     return 0;
 }
 
-int GPRS::callUp(char *number)
-{
-    send_cmd("AT+COLP=1");
-    if(0 != check_resp("OK",5))
-        return -1;
-    gprsSerial.printf("\r\nATD%s;",NULL==number?phoneNumber:number);
-    return 0;
-}
-
 int GPRS::answer(void)
 {
     gprsSerial.printf("ATA");
     return 0;
 }
+
+int GPRS::callUp(char *number)
+{
+    send_cmd("AT+COLP=1");
+    if(0 != check_resp("OK",5))
+        return -1;
+    gprsSerial.printf("\r\nATD+ %s;", number);
+    return 0;
+}
+
 /*
 int GPRS::loopHandle(void)
 {

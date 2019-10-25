@@ -43,12 +43,11 @@ public:
     /** Create GPRS instance
      *  @param tx  uart transmit pin to communicate with GPRS module
      *  @param rx  uart receive pin to communicate with GPRS module
+     *  @param ri  ring indicator goes low for 120ms when an SMS is received
      *  @param baudRate baud rate of uart communication
      *  @param number default phone number during mobile communication
      */
-    GPRS(PinName tx, PinName rx, int baudRate,char *number) : gprsSerial(tx, rx) {
-        phoneNumber = number;
-    };
+    GPRS(PinName tx, PinName rx, PinName ri, int baudRate,char *number) : gprsSerial(tx, rx) {};
 
     Serial gprsSerial;
 
@@ -96,7 +95,6 @@ private:
     int check_resp(const char *resp, int timeout);
     void clear_buffer();
 
-    char *phoneNumber;
     char messageBuffer[SMS_MAX_LENGTH];
 };
 
