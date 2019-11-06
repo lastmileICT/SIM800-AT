@@ -130,11 +130,6 @@ int GPRS::enable_SSL(const char *filename)
 
 int GPRS::setup_clock()
 {
-    // send_cmd("AT+CLTS=1;&W");
-    // if (0 != check_resp("OK", DEFAULT_TIMEOUT))
-    //     return -1;
-
-    // alternative method... trying again...
     send_cmd("AT+CNTPCID=1");
     if (0 != check_resp("OK", DEFAULT_TIMEOUT))
         return -1;
@@ -259,7 +254,6 @@ int GPRS::get_ip()
     char ip[16];
     send_cmd("AT+CIFSR");
     read_resp(ip, 16);
-    // printf("IP address %s\r\n", ip);
     return 0;
 }
 
@@ -281,7 +275,6 @@ int GPRS::close_tcp()
     char resp[10];
     send_cmd("AT+CIPCLOSE");
     read_resp(resp, 10);
-    // printf("TCP close response: %s", resp);
     send_cmd("AT+CIPSHUT");
     return 0;
 }
@@ -351,13 +344,11 @@ int GPRS::load_ssl(const char *filename, const char *cert, int filesize)
     char cmd[64];
     snprintf(cmd, sizeof(cmd), "AT+FSCREATE=%s", filename);
     send_cmd(cmd);
-    // printf("Sending this command: %s\r\n", cmd);
     if(0 != check_resp("OK", DEFAULT_TIMEOUT)){
         return -1;
     }
     snprintf(cmd, sizeof(cmd), "AT+FSWRITE=%s,0,%d,5", filename, filesize);
     send_cmd(cmd);
-    // printf("Sending this command: %s\r\n", cmd);
     if(0 != check_resp(">", DEFAULT_TIMEOUT)){
         return -1;
     }
@@ -367,30 +358,6 @@ int GPRS::load_ssl(const char *filename, const char *cert, int filesize)
     }
     return 0;
  }
-
- int GPRS::init_SMS(void)
-{
-    send_cmd("AT+CMGF=1");
-    if (0 != check_resp("OK", DEFAULT_TIMEOUT))
-        return -1;
-    send_cmd("AT+CNMI=2,1,0,0,0");
-    if (0 != check_resp("OK", DEFAULT_TIMEOUT))
-        return -1;
-    return 0;
-}
-
-// int GPRS::check_unread_SMS(void)                     // To be replaced by RI interrupt method
-// {
-//     char buf[500];
-//     uint8_t resp;
-//     char *s;
-//     char *v;
-//     send_cmd("AT+CMGL=\"REC UNREAD\"");
-//     read_resp((char *)buf, sizeof(buf));
-//     if(NULL != (s = strstr(buf, "ERROR")))
-//         return -1;
-//     return 0;
-// }
 
 int GPRS::reset(void)
 {
@@ -403,8 +370,16 @@ int GPRS::reset(void)
     return 0;
 }
 
-//////// THIS IS THE END OF FUNCTIONS CURRENTLY IN USE ////////////
-
+ int GPRS::init_SMS(void)
+{
+    send_cmd("AT+CMGF=1");
+    if (0 != check_resp("OK", DEFAULT_TIMEOUT))
+        return -1;
+    send_cmd("AT+CNMI=2,1,0,0,0");
+    if (0 != check_resp("OK", DEFAULT_TIMEOUT))
+        return -1;
+    return 0;
+}
 
 int GPRS::check_new_SMS(void)
 {
@@ -417,6 +392,43 @@ int GPRS::check_new_SMS(void)
     sscanf(buf, "+CMTI: %s,%d", s, &sms_location);
     return sms_location;
 }
+
+int GPRS::get_SMS(int index, char* message)
+{
+    char cmd[64];
+    snprintf(cmd, sizeof(cmd), "AT+CMGR=%d", index);
+    send_cmd(cmd);
+    read_resp(message, sizeof(message));
+    return -1;
+}
+
+int GPRS::send_get_request(char* url)
+{
+    char cmd[64];
+    send_cmd("AT+HTTPINIT");
+    if (0 != check_resp("OK", DEFAULT_TIMEOUT))
+        return -1;
+    send_cmd("AT+HTTPPARA=\"CID\",1");
+    if (0 != check_resp("OK", DEFAULT_TIMEOUT))
+        return -1;
+    send_cmd("AT+HTTPSSL=1");
+    if (0 != check_resp("OK", DEFAULT_TIMEOUT))
+        return -1;
+    send_cmd("AT+HTTPPARA=\"REDIR\",1");
+    if (0 != check_resp("OK", DEFAULT_TIMEOUT))
+        return -1;
+    snprintf(cmd, sizeof(cmd), "AT+HTTPPARA=\"URL\",\"%s\"", url);
+    send_cmd(cmd);
+    if (0 != check_resp("OK", DEFAULT_TIMEOUT))
+        return -1;
+    send_cmd("AT+HTTPACTION=0");
+    if (0 != check_resp("+HTTPACTION", 5))
+        return -1;
+    send_cmd("AT+HTTPREAD");
+}
+
+//////// THIS IS THE END OF FUNCTIONS CURRENTLY IN USE ////////////
+
 
 int GPRS::sendSMS(char *number, char *data)
 {
@@ -441,14 +453,6 @@ int GPRS::deleteSMS(int index)
     return 0;
 }
 
-int GPRS::getSMS(char* message)
-{
-    if(NULL != messageBuffer) {
-        strncpy(message,messageBuffer,SMS_MAX_LENGTH);
-    }
-    return 0;
-}
-
 int GPRS::answer(void)
 {
     gprsSerial.printf("ATA");
@@ -464,59 +468,6 @@ int GPRS::callUp(char *number)
     return 0;
 }
 
-/*
-int GPRS::loopHandle(void)
-{
-    char gprsBuffer[100];
-    int i;
-    char *s = NULL;
-    while(gprsSerial.readable()) {
-        gprsSerial.getc();
-    }
-START:
-	i = 0;
-    while(1) {
-        if(gprsSerial.readable()) {
-		    timeCnt.start();  // start timer
-		    while(1) {
-		        while (gprsSerial.readable()) {
-		            char c = gprsSerial.getc();
-		            if (c == '\r' || c == '\n') c = '$';
-		            gprsBuffer[i] = c;
-		            i++;
-		            if(i > 100) {
-		                i = 0;
-		                break;
-		            }
-		        }
-		        if(timeCnt.read() > 2) {          // time out
-		            timeCnt.stop();
-		            timeCnt.reset();
-		            break;
-		        }
-		    }
-            break;
-        }
-    }
-    if(NULL != strstr(gprsBuffer,"RING")) {
-        return MESSAGE_RING;
-    } else if(NULL != (s = strstr(gprsBuffer,"+CMT"))) { //SMS: $$+CMTI: "SM",24$$
-        if(NULL != (s = strstr(gprsBuffer,"+32"))) {
-            s += 6;
-            int i = 0;
-            while((*s != '$')&&(i < SMS_MAX_LENGTH-1)) {
-                messageBuffer[i++] = *(s+adjustment, &time_adjustment+);
-            }
-            messageBuffer[i] = '\0';
-            return MESSAGE_SMS;
-        } else {
-            goto START;
-        }
-    } else {
-        goto START;
-    }
-}
-*/
 bool GPRS::get_location(float *latitude, float *longitude)
 {
     char *location[10];

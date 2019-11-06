@@ -24,15 +24,6 @@
 #include "mbed.h"
 
 #define DEFAULT_TIMEOUT         3
-#define SMS_MAX_LENGTH          160
-
-
-enum GPRS_MESSAGE {
-    MESSAGE_RING = 0,
-    MESSAGE_SMS  = 1,
-    MESSAGE_ERROR
-};
-
 
 /** GPRS class.
  *  Used for mobile communication. attention that GPRS module communicate with MCU in serial protocol
@@ -75,26 +66,21 @@ public:
     int load_ssl(const char *filename, const char *cert, int filesize);
     int check_ssl_cert(const char *filename, int filesize);
     int init_SMS();
-    int check_unread_SMS();
     int reset();
-
-    bool get_location(float *latitude, float *longitude);
-
     int check_new_SMS();
-    int settingSMS();
+    int get_SMS(int index, char* message);
+    int send_get_request(char* url);
     int sendSMS(char *number, char *data);
     int deleteSMS(int index);
-    int getSMS(char* message);
     int callUp(char *number);
     int answer(void);
-    int loopHandle(void);
+    bool get_location(float *latitude, float *longitude);
+
 
 private:
     void send_cmd(const char *cmd);
     int check_resp(const char *resp, int timeout);
     void clear_buffer();
-
-    char messageBuffer[SMS_MAX_LENGTH];
 };
 
 #endif
