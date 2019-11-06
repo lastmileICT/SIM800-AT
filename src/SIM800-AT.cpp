@@ -425,6 +425,7 @@ int GPRS::send_get_request(char* url)
     if (0 != check_resp("+HTTPACTION", 5))
         return -1;
     send_cmd("AT+HTTPREAD");
+    return 0;
 }
 
 //////// THIS IS THE END OF FUNCTIONS CURRENTLY IN USE ////////////
