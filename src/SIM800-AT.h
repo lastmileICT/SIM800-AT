@@ -75,6 +75,8 @@ public:
     int callUp(char *number);
     int answer(void);
     bool get_location(float *latitude, float *longitude);
+    int search_networks(char *list);
+    int select_network(char *network);
 
 
 private:

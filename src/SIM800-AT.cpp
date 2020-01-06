@@ -428,6 +428,28 @@ int GPRS::send_get_request(char* url)
     return 0;
 }
 
+int GPRS::search_networks(char *list)
+{
+    char listbuf[200];
+    char *s;
+    send_cmd("AT+COPS=?");
+    read_resp(listbuf, sizeof(listbuf));
+    if(NULL == (s = strstr(listbuf,"+COPS")))
+        return -1;
+    sscanf(listbuf, "+COPS: %s", list);
+    return 0;
+}
+
+int GPRS::select_network(char *network)
+{
+    char cmd[64];
+    snprintf(cmd, sizeof(cmd), "AT+COPS=1,1,\"%s\"", network);
+    send_cmd(cmd);
+    if (0 != check_resp("OK", 10))
+        return -1;
+    return 0;
+}
+
 //////// THIS IS THE END OF FUNCTIONS CURRENTLY IN USE ////////////
 
 
