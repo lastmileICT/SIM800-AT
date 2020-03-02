@@ -137,7 +137,7 @@ int GPRS::setup_clock()
     if (0 != check_resp("OK", DEFAULT_TIMEOUT))
         return -1;
     send_cmd("AT+CNTP");
-    if (0 != check_resp("+CNTP: 1", DEFAULT_TIMEOUT))
+    if (0 != check_resp("+CNTP: 1", 6))
         return -1;
 
     return 0;
