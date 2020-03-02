@@ -55,7 +55,7 @@ int GPRS::check_resp(const char *resp, int timeout)
     t.start();
     const int len = strlen(resp);
     int sum = 0;    // sum of equal characters found
-    while (t.read() < DEFAULT_TIMEOUT) {
+    while (t.read() < timeout) {
         if (gprsSerial.readable()) {
             if (gprsSerial.getc() == resp[sum]) {
                 sum++;
@@ -162,7 +162,7 @@ int GPRS::enable_bearer(const char* apn, const char* user, const char* pass)
     if(0 != check_resp("OK", DEFAULT_TIMEOUT))
         return -1;
     send_cmd("AT+SAPBR=1,1");
-    if(0 != check_resp("OK", DEFAULT_TIMEOUT)) {
+    if(0 != check_resp("OK", 10)) {
         disable_bearer();
         return -1;
     }
@@ -262,9 +262,9 @@ int GPRS::connect_tcp(const char *ip, const char *port)
     char cmd[100];
     sprintf(cmd, "AT+CIPSTART=TCP,%s,%s", ip, port);
     send_cmd(cmd);
-    if(0 != check_resp("CONNECT OK", DEFAULT_TIMEOUT)){
+    if(0 != check_resp("CONNECT OK", 6)){
         send_cmd(cmd);
-        if(0 != check_resp("ALREADY CONNECT", DEFAULT_TIMEOUT))
+        if(0 != check_resp("ALREADY CONNECT", 6))
             return -1;
     }
     return 0;
@@ -304,11 +304,10 @@ int GPRS::send_tcp_data(unsigned char *data, int len)
 {
     char cmd[64];
     snprintf(cmd,sizeof(cmd),"AT+CIPSEND=%d",len);
-    clear_buffer();
     send_cmd(cmd);
     if (0 != check_resp(">", DEFAULT_TIMEOUT))
         return -1;
-    for (int i = 0; i <= len; i++)
+    for (int i = 0; i < len; i++)
     {
         gprsSerial.putc(data[i]);
     }
