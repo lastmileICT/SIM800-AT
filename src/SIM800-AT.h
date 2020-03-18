@@ -18,6 +18,8 @@
 #ifndef __GPRS_H__
 #define __GPRS_H__
 
+#ifndef UNIT_TEST
+
 #include <stdio.h>
 #include <stdint.h>
 #include <string>
@@ -86,3 +88,5 @@ private:
 };
 
 #endif
+
+#endif /* UNIT_TEST */

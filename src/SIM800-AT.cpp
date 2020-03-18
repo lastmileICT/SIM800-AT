@@ -15,6 +15,8 @@
  * limitations under the License.
  */
 
+#ifndef UNIT_TEST
+
 #include "SIM800-AT.h"
 #include <inttypes.h>
 
@@ -551,3 +553,5 @@ bool GPRS::get_location(float *latitude, float *longitude)
     }
     return false;
 }
+
+#endif /* UNIT_TEST */
