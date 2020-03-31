@@ -25,7 +25,7 @@
 #include <string>
 #include "mbed.h"
 
-#define DEFAULT_TIMEOUT         3
+#define DEFAULT_TIMEOUT 3
 
 /** GPRS class.
  *  Used for mobile communication. attention that GPRS module communicate with MCU in serial protocol
@@ -44,47 +44,80 @@ public:
     Serial gprsSerial;
 
     int request_data();
-    int read_resp(char *buffer, int count);
-    int init();
-    int wakeup();
-    int check_pin();
-    int set_pin(const char* pin);
-    int enable_SSL(const char *filename);
-    int setup_clock();
-    int enable_bearer(const char* apn, const char* user, const char* pass);
-    int network_availablity();
-    int check_signal_strength();
-    uint32_t get_time();
-    int attach_gprs();
-    int set_apn(const char* apn, const char* user, const char* pass);
-    int activate_gprs();
-    int get_ip();
-    int connect_tcp(const char* ip, const char* port);
-    int close_tcp();
-    int detach_gprs();
-    int disable_bearer();
-    void sleep();
-    int send_tcp_data(unsigned char *data, int len);
-    int load_ssl(const char *filename, const char *cert, int filesize);
-    int check_ssl_cert(const char *filename, int filesize);
-    int init_SMS();
-    int reset();
-    int check_new_SMS();
-    int get_SMS(int index, char* message);
-    int send_get_request(char* url);
-    int sendSMS(char *number, char *data);
-    int deleteSMS(int index);
-    int callUp(char *number);
-    int answer(void);
-    bool get_location(float *latitude, float *longitude);
-    int search_networks(char *list);
-    int select_network(char *network);
 
+    /** 
+     * Reads the server response through serial port. The function is used in 2 ways. 
+     * 1) To read-out the buffer, in which case, no return is actually expected.
+     * 2) To read-out and also check the response against an expected message.
+     * @param resp_buf Pointer to the buffer that will store the received data
+     * @param size_buf Size of the receive buffer. This must be set carefully to
+     * check the acknowledgement message correctly.
+     * @param time_out Maximum time (seconds) spent for reading the serial port
+     * @param ack_message Pointer to a string containing the expected message.
+     * This argument should be NULL, if no acknowledgment-check is needed. 
+     * @return While checking the response against an expected message,
+     * Invalid response : -1
+     * Valid response   : 0
+     * When used only to read-out the buffer, the function always returns -1.
+     */
+    int read_resp(char *resp_buf, int size_buf, int time_out, const char *ack_message);
+
+    int init(char *resp_buf, int size_buf);
+    int wakeup(char *resp_buf, int size_buf);
+    int check_pin(char *resp_buf, int size_buf);
+    int set_pin(const char* pin, char *resp_buf, int size_buf);
+    int enable_ssl(const char *filename, char *resp_buf, int size_buf);
+    int setup_clock(char *resp_buf, int size_buf);
+    int enable_bearer(const char* apn, const char* user, const char* pass, 
+                        char *resp_buf, int size_buf);
+    int network_registration(char *resp_buf, int size_buf);
+
+    /**
+     * The function sends the AT command "AT+CSQ" to the GSM modem and gets
+     * the signal strength value (RSSI) as the response.
+     * @param resp_buf Pointer to the buffer that will store the received data
+     * @param size_buf Size of the receive buffer
+     * @return Returns -1 if invalid RSSI or no response from the modem
+     */
+    int check_signal_strength(char *resp_buf, int size_buf);
+    uint32_t get_time(char *resp_buf, int size_buf);
+    int attach_gprs(char *resp_buf, int size_buf);
+    int set_apn(const char* apn, const char* user, const char* pass, 
+                char *resp_buf, int size_buf);
+    int activate_gprs(char *resp_buf, int size_buf);
+    int get_ip(char *resp_buf, int size_buf);
+    int connect_tcp(const char* ip, const char* port, char *resp_buf, int size_buf);
+    int close_tcp(char *resp_buf, int size_buf);
+    int detach_gprs(char *resp_buf, int size_buf);
+    int disable_bearer(char *resp_buf, int size_buf);
+    void sleep(void);
+    int send_tcp_data(unsigned char *data, int len, char *resp_buf, int size_buf);
+    int check_ssl_cert(const char *filename, int filesize, char *resp_buf, int size_buf);
+    int load_ssl(const char *filename, const char *cert, int filesize, char *resp_buf, int size_buf);
+    int reset(char *resp_buf, int size_buf);
+    int init_sms(char *resp_buf, int size_buf);
+    int check_new_sms(char *resp_buf, int size_buf);
+    int get_sms(int index, char* message, int length_message);
+    int send_get_request(char* url, char *resp_buf, int size_buf);
+
+    int send_sms(char *number, char *data, char *resp_buf, int size_buf);
+    int delete_sms(int index);
+    int answer(void);
+    int call_up(char *number, char *resp_buf, int size_buf);
+
+    bool get_location(float *latitude, float *longitude, char *resp_buf, int size_buf);
+
+    /** This function only sends the command for searching the available networks.
+     * Reading the response must be done separately using the read_resp() function.
+     * It can take upto 3 minutes to get a response.
+     * So, need to be careful about a watchdog reset in the main program.
+     */
+    void search_networks(void);
+    int select_network(char *network, char *resp_buf, int size_buf);
 
 private:
     void send_cmd(const char *cmd);
-    int check_resp(const char *resp, int timeout);
-    void clear_buffer();
+    void clear_buffer(void);
 };
 
 #endif
