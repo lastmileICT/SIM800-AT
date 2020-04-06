@@ -165,24 +165,28 @@ int GPRS::setup_clock(char *resp_buf, int size_buf)
 int GPRS::enable_bearer(const char* apn, const char* user, const char* pass, 
                         char *resp_buf, int size_buf)
 {
+    // Set the type of Internet connection as GPRS
     char cmd[64];
     send_cmd("AT+SAPBR=3,1,Contype,GPRS");
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
         return -1;
     }
 
+    // Set the access point name string
     snprintf(cmd, sizeof(cmd), "AT+SAPBR=3,1,APN,\"%s\"", apn);
     send_cmd(cmd);
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
         return -1;
     }
 
+    // Set the user name for APN
     snprintf(cmd, sizeof(cmd), "AT+SAPBR=3,1,USER,\"%s\"", user);
     send_cmd(cmd);
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
         return -1;
     }
 
+    // Set the password for APN
     snprintf(cmd, sizeof(cmd), "AT+SAPBR=3,1,PWD,\"%s\"", pass);
     send_cmd(cmd);
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
@@ -204,20 +208,20 @@ void GPRS::search_networks(void)
     send_cmd("AT+COPS=?");
 }
 
-int GPRS::select_network(char *network, char *resp_buf, int size_buf)
+int GPRS::select_network(const char *network, char *resp_buf, int size_buf)
 {
     char cmd[64];
     snprintf(cmd, sizeof(cmd), "AT+COPS=1,1,\"%s\"", network);
     send_cmd(cmd);
-
-    if (0 != read_resp(resp_buf, size_buf, 10, "OK")) {
+    if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
         return -1;
     }
+
     // If the responses are as expected
     return 0;
 }
 
-int GPRS::network_registration(char *resp_buf, int size_buf)
+int GPRS::network_registration_gsm(char *resp_buf, int size_buf)
 {
     char *s;
     send_cmd("AT+CREG?");
@@ -226,7 +230,19 @@ int GPRS::network_registration(char *resp_buf, int size_buf)
         (NULL != (s = strstr(resp_buf,"+CREG: 0,5")))) {
         return 0; // Success;
     }
+    // Not registered yet
+    return -1;
+}
 
+int GPRS::network_registration_gprs(char *resp_buf, int size_buf)
+{
+    char *s;
+    send_cmd("AT+CGREG?");
+    read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, NULL);
+    if ((NULL != (s = strstr(resp_buf,"+CGREG: 0,1"))) || 
+        (NULL != (s = strstr(resp_buf,"+CGREG: 0,5")))) {
+        return 0; // Success;
+    }
     // Not registered yet
     return -1;
 }
@@ -277,16 +293,20 @@ uint32_t GPRS::get_time(char *resp_buf, int size_buf)
 
 int GPRS::attach_gprs(char *resp_buf, int size_buf)
 {
+    // Attach GPRS
     send_cmd("AT+CGATT=1");
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
         return -1;
     }
 
+    // Startup single IP connection
     send_cmd("AT+CIPMUX=0");
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
         return -1;
     }
 
+    // Get Data from Network Manually
+    // IP address and port are contained
     send_cmd("AT+CIPRXGET=1");
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
         return -1;

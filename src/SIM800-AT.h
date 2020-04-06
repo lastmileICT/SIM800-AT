@@ -68,9 +68,38 @@ public:
     int set_pin(const char* pin, char *resp_buf, int size_buf);
     int enable_ssl(const char *filename, char *resp_buf, int size_buf);
     int setup_clock(char *resp_buf, int size_buf);
+
+    /**
+     * Bearer Settings for Applications Based on IP. This configures the Access Point Name (APN) 
+     * parameters for internet access. The function sends the AT command "AT+SAPBR" to the GSM 
+     * modem.
+     * @param apn APN for the internet gateway
+     * @param user User ID for APN
+     * @param pass Password for APN
+     * @param resp_buf Pointer to the buffer that will store the received data
+     * @param size_buf Size of the receive buffer
+     * @return Returns -1 if invalid or no response from the modem
+     */
     int enable_bearer(const char* apn, const char* user, const char* pass, 
                         char *resp_buf, int size_buf);
-    int network_registration(char *resp_buf, int size_buf);
+
+    /**
+     * Check GSM registration.
+     * The function sends the AT command "AT+CREG?" to the GSM modem.
+     * @param resp_buf Pointer to the buffer that will store the received data
+     * @param size_buf Size of the receive buffer
+     * @return Returns -1 if invalid or no response from the modem
+     */
+    int network_registration_gsm(char *resp_buf, int size_buf);
+
+    /**
+     * Check packet switched registration.
+     * The function sends the AT command "AT+CGREG?" to the GSM modem.
+     * @param resp_buf Pointer to the buffer that will store the received data
+     * @param size_buf Size of the receive buffer
+     * @return Returns -1 if invalid or no response from the modem
+     */
+    int network_registration_gprs(char *resp_buf, int size_buf);
 
     /**
      * The function sends the AT command "AT+CSQ" to the GSM modem and gets
@@ -107,13 +136,25 @@ public:
 
     bool get_location(float *latitude, float *longitude, char *resp_buf, int size_buf);
 
-    /** This function only sends the command for searching the available networks.
+    /**
+     * This function only sends the command (AT+COPS=?) for searching the available networks.
      * Reading the response must be done separately using the read_resp() function.
      * It can take upto 3 minutes to get a response.
      * So, need to be careful about a watchdog reset in the main program.
      */
     void search_networks(void);
-    int select_network(char *network, char *resp_buf, int size_buf);
+
+    /**
+     * Function to manually switch to a specific available network.
+     * This function sends the command (AT+COPS=1,1,"OperatorShortName").
+     * This can take upto 3 minutes to get a response. 
+     * So, need to be careful about a watchdog reset in the main program.
+     * Immediate response-check is also handled in the function.
+     * @param resp_buf Pointer to the buffer that will store the received data
+     * @param size_buf Size of the receive buffer
+     * @return Returns -1 if invalid or no response from the modem
+     */
+    int select_network(const char *network, char *resp_buf, int size_buf);
 
 private:
     void send_cmd(const char *cmd);
