@@ -128,6 +128,10 @@ public:
     int check_new_sms(char *resp_buf, int size_buf);
     int get_sms(int index, char* message, int length_message);
     int send_get_request(char* url, char *resp_buf, int size_buf);
+    int bt_power_on(char *resp_buf, int size_buf);
+    int accept_bt(char *resp_buf, int size_buf);
+    int accept_bt_pair(char *resp_buf, int size_buf);
+    int send_bt_data(unsigned char *data, int len, char *resp_buf, int size_buf);
 
     int send_sms(char *number, char *data, char *resp_buf, int size_buf);
     int delete_sms(int index);
