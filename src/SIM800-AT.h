@@ -132,6 +132,8 @@ public:
     int accept_bt(char *resp_buf, int size_buf);
     int accept_bt_pair(char *resp_buf, int size_buf);
     int send_bt_data(unsigned char *data, int len, char *resp_buf, int size_buf);
+    int check_bt_host(const char *host, char *resp_buf, int size_buf);
+    int change_bt_host(const char* host, char *resp_buf, int size_buf);
 
     int send_sms(char *number, char *data, char *resp_buf, int size_buf);
     int delete_sms(int index);
