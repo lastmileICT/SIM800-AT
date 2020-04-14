@@ -162,39 +162,47 @@ int GPRS::setup_clock(char *resp_buf, int size_buf)
     return 0;
 }
 
-int GPRS::enable_bearer(const char* apn, const char* user, const char* pass, 
+int GPRS::setup_bearer(const char* apn, const char* user, const char* pass, 
                         char *resp_buf, int size_buf)
 {
+    // Set the type of Internet connection as GPRS
     char cmd[64];
     send_cmd("AT+SAPBR=3,1,Contype,GPRS");
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
         return -1;
     }
 
+    // Set the access point name string
     snprintf(cmd, sizeof(cmd), "AT+SAPBR=3,1,APN,\"%s\"", apn);
     send_cmd(cmd);
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
         return -1;
     }
 
+    // Set the user name for APN
     snprintf(cmd, sizeof(cmd), "AT+SAPBR=3,1,USER,\"%s\"", user);
     send_cmd(cmd);
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
         return -1;
     }
 
+    // Set the password for APN
     snprintf(cmd, sizeof(cmd), "AT+SAPBR=3,1,PWD,\"%s\"", pass);
     send_cmd(cmd);
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
         return -1;
     }
+    // If the responses are as expected
+    return 0;
+}
 
+int GPRS::enable_bearer(char *resp_buf, int size_buf)
+{
     send_cmd("AT+SAPBR=1,1");
-    if (0 != read_resp(resp_buf, size_buf, 10, "OK")) {
+    if (0 != read_resp(resp_buf, size_buf, 6, "OK")) {
         disable_bearer(resp_buf, size_buf);
         return -1;
     }
-
     // If the responses are as expected
     return 0;
 }
@@ -204,29 +212,39 @@ void GPRS::search_networks(void)
     send_cmd("AT+COPS=?");
 }
 
-int GPRS::select_network(char *network, char *resp_buf, int size_buf)
+int GPRS::select_network(const char *network, char *resp_buf, int size_buf)
 {
     char cmd[64];
     snprintf(cmd, sizeof(cmd), "AT+COPS=1,1,\"%s\"", network);
     send_cmd(cmd);
-
-    if (0 != read_resp(resp_buf, size_buf, 10, "OK")) {
+    if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
         return -1;
     }
+
     // If the responses are as expected
     return 0;
 }
 
-int GPRS::network_registration(char *resp_buf, int size_buf)
+int GPRS::network_registration_gsm(char *resp_buf, int size_buf)
 {
-    char *s;
     send_cmd("AT+CREG?");
     read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, NULL);
-    if ((NULL != (s = strstr(resp_buf,"+CREG: 0,1"))) || 
-        (NULL != (s = strstr(resp_buf,"+CREG: 0,5")))) {
+    if ((NULL != strstr(resp_buf,"+CREG: 0,1")) || 
+        (NULL != strstr(resp_buf,"+CREG: 0,5"))) {
+        return 0; // Success
+    }
+    // Not registered yet
+    return -1;
+}
+
+int GPRS::network_registration_gprs(char *resp_buf, int size_buf)
+{
+    send_cmd("AT+CGREG?");
+    read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, NULL);
+    if ((NULL != strstr(resp_buf,"+CGREG: 0,1")) || 
+        (NULL != strstr(resp_buf,"+CGREG: 0,5"))) {
         return 0; // Success;
     }
-
     // Not registered yet
     return -1;
 }
@@ -277,16 +295,25 @@ uint32_t GPRS::get_time(char *resp_buf, int size_buf)
 
 int GPRS::attach_gprs(char *resp_buf, int size_buf)
 {
+    // Attach GPRS
     send_cmd("AT+CGATT=1");
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
         return -1;
     }
 
+    // If the responses are as expected
+    return 0;
+}
+
+int GPRS::enable_get_data_manually(char *resp_buf, int size_buf)
+{
+    // Startup single IP connection
     send_cmd("AT+CIPMUX=0");
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
         return -1;
     }
 
+    //Enable getting data from network manually.
     send_cmd("AT+CIPRXGET=1");
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
         return -1;
@@ -323,38 +350,51 @@ int GPRS::get_ip(char *resp_buf, int size_buf)
     if (0 == read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "ERROR")) {
         return -1;
     }
-
-    // If the responses are as expected
+    // If the response gives a valid IP address
     return 0;
 }
 
-int GPRS::connect_tcp(const char *ip, const char *port, char *resp_buf, int size_buf)
+int GPRS::connect_tcp(const char *domain, const char *port, char *resp_buf, int size_buf)
 {
-    char *s;
     char cmd[100];
-    sprintf(cmd, "AT+CIPSTART=TCP,%s,%s", ip, port);
+    sprintf(cmd, "AT+CIPSTART=TCP,%s,%s", domain, port);
     send_cmd(cmd);
 
     read_resp(resp_buf, size_buf, 6, NULL);
-    if ((NULL != (s = strstr(resp_buf,"CONNECT OK"))) || 
-        (NULL != (s = strstr(resp_buf,"ALREADY CONNECT")))) {
+    if ((NULL != strstr(resp_buf,"CONNECT OK")) || 
+        (NULL != strstr(resp_buf,"ALREADY CONNECT"))) {
         return 0; // Connection success
     }
 
     return -1; // Invalid
 }
 
+void GPRS::close_pdp_context(void)
+{
+    // Close the GPRS PDP context.
+    send_cmd("AT+CIPSHUT");
+}
+
 int GPRS::close_tcp(char *resp_buf, int size_buf)
 {
     // closes the TCP connection
-    send_cmd("AT+CIPCLOSE"); // Return "CLOSE OK"
-    read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, NULL);
-    if (0 != strlen(resp_buf)) {
-        // Close the GPRS PDP context.
-        send_cmd("AT+CIPSHUT");
-        return 0;
+    send_cmd("AT+CIPCLOSE=0");
+    read_resp(resp_buf, size_buf, 6, NULL);
+    if (NULL != strstr(resp_buf,"CLOSE OK")) {
+        return 0; // Success
     }
-    return -1; // No response
+    return -1; // Invalid or ERROR
+}
+
+int GPRS::close_tcp_quick(char *resp_buf, int size_buf)
+{
+    // closes the TCP connection quickly
+    send_cmd("AT+CIPCLOSE=1");
+    read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, NULL);
+    if (NULL != strstr(resp_buf,"CLOSE OK")) {
+        return 0; // Success
+    }
+    return -1; // Invalid or ERROR
 }
 
 int GPRS::detach_gprs(char *resp_buf, int size_buf)
@@ -363,7 +403,6 @@ int GPRS::detach_gprs(char *resp_buf, int size_buf)
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
         return -1;
     }
-
     // If the response is as expected
     return 0;
 }
@@ -371,10 +410,9 @@ int GPRS::detach_gprs(char *resp_buf, int size_buf)
 int GPRS::disable_bearer(char *resp_buf, int size_buf)
 {
     send_cmd("AT+SAPBR=0,1");
-    if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
+    if (0 != read_resp(resp_buf, size_buf, 6, "OK")) {
         return -1;
     }
-
     // If the response is as expected
     return 0;
 }
@@ -389,7 +427,6 @@ int GPRS::send_tcp_data(unsigned char *data, int len, char *resp_buf, int size_b
     char cmd[64];
     snprintf(cmd, sizeof(cmd), "AT+CIPSEND=%d", len);
     send_cmd(cmd);
-
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, ">")) {
         return -1;
     }
@@ -399,10 +436,10 @@ int GPRS::send_tcp_data(unsigned char *data, int len, char *resp_buf, int size_b
         gprsSerial.putc(data[i]);
     }
 
-    if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
+    read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, NULL);
+    if (NULL == strstr(resp_buf,"OK")) {
         return -1;
     }
-
     // If the response is as expected
     return 0;
 }
@@ -552,6 +589,78 @@ int GPRS::send_get_request(char* url, char *resp_buf, int size_buf)
     send_cmd("AT+HTTPREAD");
 
     // If the responses are as expected
+    return 0;
+}
+
+int GPRS::bt_power_on(char *resp_buf, int size_buf)
+{
+    send_cmd("AT+BTPOWER=1");
+    read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, NULL);
+    if ((NULL != strstr(resp_buf, "OK")) || 
+        (NULL != strstr(resp_buf, "ERROR"))) {
+        return 0; // Connection success
+    }
+    return -1;
+}
+
+int GPRS::accept_bt(char *resp_buf, int size_buf)
+{
+    send_cmd("AT+BTACPT=1");
+    if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
+        return -1;
+    }
+    return 0;
+}
+
+int GPRS::accept_bt_pair(char *resp_buf, int size_buf)
+{
+    send_cmd("AT+BTPAIR=1,1");
+    if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
+        return -1;
+    }
+    return 0;
+}
+
+int GPRS::send_bt_data(unsigned char *data, int len, char *resp_buf, int size_buf)
+{
+    char cmd[64];
+    snprintf(cmd, sizeof(cmd), "AT+BTSPPSEND=%d", len);
+    send_cmd(cmd);
+
+    if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, ">")) {
+        return -1;
+    }
+
+    // Send data
+    for (int i = 0; i < len; i++) {
+        gprsSerial.putc(data[i]);
+    }
+
+    if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
+        return -1;
+    }
+
+    // If the response is as expected
+    return 0;
+}
+
+int GPRS::check_bt_host(const char *host, char *resp_buf, int size_buf)
+{
+    send_cmd("AT+BTHOST?");
+    if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, host)) {
+        return -1;
+    }
+    return 0;
+}
+
+int GPRS::change_bt_host(const char *host, char *resp_buf, int size_buf)
+{
+    char cmd[64];
+    snprintf(cmd, sizeof(cmd), "AT+BTHOST=%s", host);
+    send_cmd(cmd);
+    if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
+        return -1;
+    }
     return 0;
 }
 

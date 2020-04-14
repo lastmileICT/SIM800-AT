@@ -68,9 +68,47 @@ public:
     int set_pin(const char* pin, char *resp_buf, int size_buf);
     int enable_ssl(const char *filename, char *resp_buf, int size_buf);
     int setup_clock(char *resp_buf, int size_buf);
-    int enable_bearer(const char* apn, const char* user, const char* pass, 
+
+    /**
+     * Bearer Settings for Applications Based on IP. This configures the Access Point Name (APN) 
+     * parameters for internet access. The function sends the AT command "AT+SAPBR=3,......" 
+     * to the GSM modem.
+     * @param apn APN for the internet gateway
+     * @param user User ID for APN
+     * @param pass Password for APN
+     * @param resp_buf Pointer to the buffer that will store the received data
+     * @param size_buf Size of the receive buffer
+     * @return Returns -1 if invalid or no response from the modem
+     */
+    int setup_bearer(const char* apn, const char* user, const char* pass, 
                         char *resp_buf, int size_buf);
-    int network_registration(char *resp_buf, int size_buf);
+
+    /**
+     * Enables/opens the bearer, provided the settings have been done. 
+     * The function sends the AT command "AT+SAPBR=1,.." to the GSM modem.
+     * @param resp_buf Pointer to the buffer that will store the received data
+     * @param size_buf Size of the receive buffer
+     * @return Returns -1 if invalid or no response from the modem
+     */
+    int enable_bearer(char *resp_buf, int size_buf);
+
+    /**
+     * Check GSM registration.
+     * The function sends the AT command "AT+CREG?" to the GSM modem.
+     * @param resp_buf Pointer to the buffer that will store the received data
+     * @param size_buf Size of the receive buffer
+     * @return Returns -1 if invalid or no response from the modem
+     */
+    int network_registration_gsm(char *resp_buf, int size_buf);
+
+    /**
+     * Check packet switched registration.
+     * The function sends the AT command "AT+CGREG?" to the GSM modem.
+     * @param resp_buf Pointer to the buffer that will store the received data
+     * @param size_buf Size of the receive buffer
+     * @return Returns -1 if invalid or no response from the modem
+     */
+    int network_registration_gprs(char *resp_buf, int size_buf);
 
     /**
      * The function sends the AT command "AT+CSQ" to the GSM modem and gets
@@ -82,12 +120,81 @@ public:
     int check_signal_strength(char *resp_buf, int size_buf);
     uint32_t get_time(char *resp_buf, int size_buf);
     int attach_gprs(char *resp_buf, int size_buf);
+    int enable_get_data_manually(char *resp_buf, int size_buf);
+
+    /**
+     * Start Task and Set APN, USER NAME, PASSWORD.
+     * The function sends the AT command "AT+CSTT=apn,user,pass" to the GSM modem.
+     * @param apn APN details
+     * @param user User ID
+     * @param pass Password
+     * @param resp_buf Pointer to the buffer that will store the received data
+     * @param size_buf Size of the receive buffer
+     * @return Returns -1 if invalid or no response from the modem, 0 if success.
+     */
     int set_apn(const char* apn, const char* user, const char* pass, 
                 char *resp_buf, int size_buf);
+
+    /**
+     * Bring Up Wireless Connection with GPRS.
+     * The function sends the AT commands "AT+CIICR" to the GSM modem.
+     * @param resp_buf Pointer to the buffer that will store the received data
+     * @param size_buf Size of the receive buffer
+     * @return Returns 0 if the modem responds with "OK".
+     * Returns -1 if no response or invalid.
+     */
     int activate_gprs(char *resp_buf, int size_buf);
+
+    /**
+     * Get Local IP address, if the PDP context has been activated before.
+     * The function sends the AT commands "AT+CIFSR" to the GSM modem.
+     * @param resp_buf Pointer to the buffer that will store the received data
+     * @param size_buf Size of the receive buffer
+     * @return Returns 0 if the modem response is a valid IP address. Returns -1 if the GSM modem 
+     * responds with an "ERROR". This can happen if the PDP context has not been activated already.
+     */
     int get_ip(char *resp_buf, int size_buf);
-    int connect_tcp(const char* ip, const char* port, char *resp_buf, int size_buf);
+
+    /**
+     * Opens TCP connection sending the AT command "AT+CIPSTART=TCP,domain,port" to the GSM modem.
+     * Expects a "CONNECT OK" or "ALREADY CONNECT" from the modem on successful connection.
+     * @param domain  Remote server domain name
+     * @param port Remote server port
+     * @param resp_buf Pointer to the buffer that will store the received data
+     * @param size_buf Size of the receive buffer
+     * @return Returns -1 if invalid or no response from the modem
+     */
+    int connect_tcp(const char* domain, const char* port, char *resp_buf, int size_buf);
+
+    /**
+     * Closes the TCP connection.
+     * The function sends the AT command "AT+CIPCLOSE=0" to the GSM modem.
+     * The modem may return ERROR if TCP is not already opened.
+     * @param resp_buf Pointer to the buffer that will store the received data
+     * @param size_buf Size of the receive buffer
+     * @return Returns -1 on receiving an ERROR or invalid response.
+     * Returns 0 if CLOSE OK is received from the modem.
+     */
     int close_tcp(char *resp_buf, int size_buf);
+
+
+    /**
+     * Quickly closes the TCP connection.
+     * The function sends the AT command "AT+CIPCLOSE=1" to the GSM modem.
+     * The modem may return ERROR if TCP is not already opened.
+     * @param resp_buf Pointer to the buffer that will store the received data
+     * @param size_buf Size of the receive buffer
+     * @return Returns -1 on receiving an ERROR or invalid response.
+     * Returns 0 if CLOSE OK is received from the modem.
+     */
+    int close_tcp_quick(char *resp_buf, int size_buf);
+
+    /**
+     * Closes the GPRS PDP context.
+     * The function sends the AT command "AT+CIPSHUT" to the GSM modem.
+     */
+    void close_pdp_context(void);
+
     int detach_gprs(char *resp_buf, int size_buf);
     int disable_bearer(char *resp_buf, int size_buf);
     void sleep(void);
@@ -99,7 +206,12 @@ public:
     int check_new_sms(char *resp_buf, int size_buf);
     int get_sms(int index, char* message, int length_message);
     int send_get_request(char* url, char *resp_buf, int size_buf);
-
+    int bt_power_on(char *resp_buf, int size_buf);
+    int accept_bt(char *resp_buf, int size_buf);
+    int accept_bt_pair(char *resp_buf, int size_buf);
+    int send_bt_data(unsigned char *data, int len, char *resp_buf, int size_buf);
+    int check_bt_host(const char *host, char *resp_buf, int size_buf);
+    int change_bt_host(const char* host, char *resp_buf, int size_buf);
     int send_sms(char *number, char *data, char *resp_buf, int size_buf);
     int delete_sms(int index);
     int answer(void);
@@ -107,13 +219,25 @@ public:
 
     bool get_location(float *latitude, float *longitude, char *resp_buf, int size_buf);
 
-    /** This function only sends the command for searching the available networks.
+    /**
+     * This function only sends the command (AT+COPS=?) for searching the available networks.
      * Reading the response must be done separately using the read_resp() function.
      * It can take upto 3 minutes to get a response.
      * So, need to be careful about a watchdog reset in the main program.
      */
     void search_networks(void);
-    int select_network(char *network, char *resp_buf, int size_buf);
+
+    /**
+     * Function to manually switch to a specific available network.
+     * This function sends the command (AT+COPS=1,1,"OperatorShortName").
+     * This can take upto 3 minutes to get a response. 
+     * So, need to be careful about a watchdog reset in the main program.
+     * Immediate response-check is also handled in the function.
+     * @param resp_buf Pointer to the buffer that will store the received data
+     * @param size_buf Size of the receive buffer
+     * @return Returns -1 if invalid or no response from the modem
+     */
+    int select_network(const char *network, char *resp_buf, int size_buf);
 
 private:
     void send_cmd(const char *cmd);
