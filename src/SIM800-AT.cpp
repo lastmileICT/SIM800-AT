@@ -200,7 +200,6 @@ int GPRS::enable_bearer(char *resp_buf, int size_buf)
 {
     send_cmd("AT+SAPBR=1,1");
     if (0 != read_resp(resp_buf, size_buf, 6, "OK")) {
-        disable_bearer(resp_buf, size_buf);
         return -1;
     }
     // If the responses are as expected
@@ -380,10 +379,11 @@ int GPRS::close_tcp(char *resp_buf, int size_buf)
     // closes the TCP connection
     send_cmd("AT+CIPCLOSE=0");
     read_resp(resp_buf, size_buf, 6, NULL);
-    if (NULL != strstr(resp_buf,"CLOSE OK")) {
+    if ((NULL != strstr(resp_buf,"CLOSE OK")) || 
+        (NULL != strstr(resp_buf,"ERROR"))) { // If TCP not opened previously
         return 0; // Success
     }
-    return -1; // Invalid or ERROR
+    return -1; // Invalid
 }
 
 int GPRS::close_tcp_quick(char *resp_buf, int size_buf)
@@ -391,10 +391,11 @@ int GPRS::close_tcp_quick(char *resp_buf, int size_buf)
     // closes the TCP connection quickly
     send_cmd("AT+CIPCLOSE=1");
     read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, NULL);
-    if (NULL != strstr(resp_buf,"CLOSE OK")) {
+    if ((NULL != strstr(resp_buf,"CLOSE OK")) || 
+        (NULL != strstr(resp_buf,"ERROR"))) { // If TCP not opened previously
         return 0; // Success
     }
-    return -1; // Invalid or ERROR
+    return -1; // Invalid
 }
 
 int GPRS::detach_gprs(char *resp_buf, int size_buf)

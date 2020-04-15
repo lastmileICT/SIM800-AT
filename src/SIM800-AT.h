@@ -172,8 +172,8 @@ public:
      * The modem may return ERROR if TCP is not already opened.
      * @param resp_buf Pointer to the buffer that will store the received data
      * @param size_buf Size of the receive buffer
-     * @return Returns -1 on receiving an ERROR or invalid response.
-     * Returns 0 if CLOSE OK is received from the modem.
+     * @return Returns -1 on receiving an invalid response.
+     * Returns 0 if CLOSE OK or ERROR received from the modem.
      */
     int close_tcp(char *resp_buf, int size_buf);
 
@@ -184,8 +184,8 @@ public:
      * The modem may return ERROR if TCP is not already opened.
      * @param resp_buf Pointer to the buffer that will store the received data
      * @param size_buf Size of the receive buffer
-     * @return Returns -1 on receiving an ERROR or invalid response.
-     * Returns 0 if CLOSE OK is received from the modem.
+     * @return Returns -1 on receiving an invalid response.
+     * Returns 0 if CLOSE OK or ERROR received from the modem.
      */
     int close_tcp_quick(char *resp_buf, int size_buf);
 
