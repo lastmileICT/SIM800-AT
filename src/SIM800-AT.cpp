@@ -206,6 +206,17 @@ int GPRS::enable_bearer(char *resp_buf, int size_buf)
     return 0;
 }
 
+int GPRS::get_active_network(char *resp_buf, int size_buf)
+{
+    send_cmd("AT+COPS?");
+    read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, NULL);
+    if ((NULL != strstr(resp_buf,"OK"))) {
+        return 0; // Success
+    }
+    // Invalid or no response
+    return -1;
+}
+
 void GPRS::search_networks(void)
 {
     send_cmd("AT+COPS=?");
@@ -437,7 +448,7 @@ int GPRS::send_tcp_data(unsigned char *data, int len, char *resp_buf, int size_b
         gprsSerial.putc(data[i]);
     }
 
-    read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, NULL);
+    read_resp(resp_buf, size_buf, 7, NULL);
     if (NULL == strstr(resp_buf,"OK")) {
         return -1;
     }

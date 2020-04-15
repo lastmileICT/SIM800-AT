@@ -220,6 +220,15 @@ public:
     bool get_location(float *latitude, float *longitude, char *resp_buf, int size_buf);
 
     /**
+     * Get the currently selected network operator.
+     * This function sends the command "AT+COPS?" to the modem.
+     * @param resp_buf Pointer to the buffer that will store the received data
+     * @param size_buf Size of the receive buffer
+     * @return Returns -1 if invalid or no response from the modem, and 0 if success
+     */
+    int get_active_network(char *resp_buf, int size_buf);
+
+    /**
      * This function only sends the command (AT+COPS=?) for searching the available networks.
      * Reading the response must be done separately using the read_resp() function.
      * It can take upto 3 minutes to get a response.
