@@ -198,19 +198,61 @@ int GPRS::setup_bearer(const char* apn, const char* user, const char* pass,
 
 int GPRS::enable_bearer(char *resp_buf, int size_buf)
 {
-    send_cmd("AT+SAPBR=1,1");
-    if (0 != read_resp(resp_buf, size_buf, 6, "OK")) {
-        return -1;
+    send_cmd("AT+SAPBR=1,1"); // Response time can be upto 85 seconds
+    read_resp(resp_buf, size_buf, 6, NULL);
+
+    if (NULL != strstr(resp_buf, "OK")) {
+        return 0;
     }
-    // If the responses are as expected
-    return 0;
+    // Returns with ERROR if it's already open or if actually an error
+    else if (NULL != strstr(resp_buf, "ERROR")) {
+        if (1 == check_bearer_status()) {
+            // Bearer already opened. So this is actually not an error.
+            return 0;
+        }
+    }
+    // An actual error response received or no response yet
+    return -1;
+}
+
+int GPRS::check_bearer_status(void)
+{
+    const char delimiters[2] = ","; // Multiple delimiters to separate the string
+    char *token = NULL;
+    int status = -1;
+    char bearer_info[40];
+
+    send_cmd("AT+SAPBR=2,1");
+    read_resp(bearer_info, sizeof(bearer_info), DEFAULT_TIMEOUT, NULL);
+
+    if (0 == strlen(bearer_info)) {
+        return -1; // No response
+    }
+    else { // Response received
+        // Response will be in the format +SAPBR: 1,1,"10.136.76.225"
+        // Split the string using the set of delimiters
+        token = strtok(bearer_info, delimiters);
+        while (token != NULL) {
+            for (int i = 0; i < 3; i++) {
+                if (i == 1) {
+                    sscanf(token, "%d", &status);
+                }
+                token = strtok(NULL, delimiters);
+                if (token == NULL) { // If the end of the list
+                    break;
+                }
+            }
+            return status;
+        }
+    }
+    return -1; // Invalid response
 }
 
 int GPRS::get_active_network(char *resp_buf, int size_buf)
 {
     send_cmd("AT+COPS?");
     read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, NULL);
-    if ((NULL != strstr(resp_buf,"OK"))) {
+    if ((NULL != strstr(resp_buf, "OK"))) {
         return 0; // Success
     }
     // Invalid or no response
@@ -225,7 +267,7 @@ void GPRS::search_networks(void)
 int GPRS::select_network(const char *network, char *resp_buf, int size_buf)
 {
     char cmd[64];
-    snprintf(cmd, sizeof(cmd), "AT+COPS=1,1,\"%s\"", network);
+    snprintf(cmd, sizeof(cmd), "AT+COPS=4,1,\"%s\"", network);
     send_cmd(cmd);
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
         return -1;
@@ -239,8 +281,8 @@ int GPRS::network_registration_gsm(char *resp_buf, int size_buf)
 {
     send_cmd("AT+CREG?");
     read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, NULL);
-    if ((NULL != strstr(resp_buf,"+CREG: 0,1")) || 
-        (NULL != strstr(resp_buf,"+CREG: 0,5"))) {
+    if ((NULL != strstr(resp_buf, "+CREG: 0,1")) || 
+        (NULL != strstr(resp_buf, "+CREG: 0,5"))) {
         return 0; // Success
     }
     // Not registered yet
@@ -251,8 +293,8 @@ int GPRS::network_registration_gprs(char *resp_buf, int size_buf)
 {
     send_cmd("AT+CGREG?");
     read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, NULL);
-    if ((NULL != strstr(resp_buf,"+CGREG: 0,1")) || 
-        (NULL != strstr(resp_buf,"+CGREG: 0,5"))) {
+    if ((NULL != strstr(resp_buf, "+CGREG: 0,1")) || 
+        (NULL != strstr(resp_buf, "+CGREG: 0,5"))) {
         return 0; // Success;
     }
     // Not registered yet
@@ -346,12 +388,15 @@ int GPRS::set_apn(const char* apn, const char* user, const char* pass, char *res
 
 int GPRS::activate_gprs(char *resp_buf, int size_buf)
 {
-    send_cmd("AT+CIICR");
-    if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
-        return -1;
+    send_cmd("AT+CIICR"); // Upto 85 seconds
+    read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, NULL);
+    if ((NULL != strstr(resp_buf, "OK")) || 
+        (NULL != strstr(resp_buf, "ERROR"))) {
+        // If the responses are as expected - OK or ERROR received
+        return 0;
     }
-    // If the responses are as expected
-    return 0;
+    // If no response or invalid
+    return -1;
 }
 
 int GPRS::get_ip(char *resp_buf, int size_buf)
@@ -371,18 +416,25 @@ int GPRS::connect_tcp(const char *domain, const char *port, char *resp_buf, int 
     send_cmd(cmd);
 
     read_resp(resp_buf, size_buf, 6, NULL);
-    if ((NULL != strstr(resp_buf,"CONNECT OK")) || 
-        (NULL != strstr(resp_buf,"ALREADY CONNECT"))) {
+    if ((NULL != strstr(resp_buf, "CONNECT OK")) || 
+        (NULL != strstr(resp_buf, "ALREADY CONNECT"))) {
         return 0; // Connection success
     }
 
     return -1; // Invalid
 }
 
-void GPRS::close_pdp_context(void)
+int GPRS::close_pdp_context(void)
 {
+    char buf[30];
     // Close the GPRS PDP context.
-    send_cmd("AT+CIPSHUT");
+    send_cmd("AT+CIPSHUT"); // Can take up to 65 seconds
+    read_resp(buf, sizeof(buf), 6, NULL);
+
+    if (NULL != strstr(buf, "SHUT OK")) {
+        return 0; // Success
+    }
+    return -1;
 }
 
 int GPRS::close_tcp(char *resp_buf, int size_buf)
@@ -390,8 +442,8 @@ int GPRS::close_tcp(char *resp_buf, int size_buf)
     // closes the TCP connection
     send_cmd("AT+CIPCLOSE=0");
     read_resp(resp_buf, size_buf, 6, NULL);
-    if ((NULL != strstr(resp_buf,"CLOSE OK")) || 
-        (NULL != strstr(resp_buf,"ERROR"))) { // If TCP not opened previously
+    if ((NULL != strstr(resp_buf, "CLOSE OK")) || 
+        (NULL != strstr(resp_buf, "ERROR"))) { // If TCP not opened previously
         return 0; // Success
     }
     return -1; // Invalid
@@ -402,8 +454,8 @@ int GPRS::close_tcp_quick(char *resp_buf, int size_buf)
     // closes the TCP connection quickly
     send_cmd("AT+CIPCLOSE=1");
     read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, NULL);
-    if ((NULL != strstr(resp_buf,"CLOSE OK")) || 
-        (NULL != strstr(resp_buf,"ERROR"))) { // If TCP not opened previously
+    if ((NULL != strstr(resp_buf, "CLOSE OK")) || 
+        (NULL != strstr(resp_buf, "ERROR"))) { // If TCP not opened previously
         return 0; // Success
     }
     return -1; // Invalid
@@ -421,7 +473,7 @@ int GPRS::detach_gprs(char *resp_buf, int size_buf)
 
 int GPRS::disable_bearer(char *resp_buf, int size_buf)
 {
-    send_cmd("AT+SAPBR=0,1");
+    send_cmd("AT+SAPBR=0,1"); // Up to 65 seconds
     if (0 != read_resp(resp_buf, size_buf, 6, "OK")) {
         return -1;
     }
@@ -448,8 +500,9 @@ int GPRS::send_tcp_data(unsigned char *data, int len, char *resp_buf, int size_b
         gprsSerial.putc(data[i]);
     }
 
+    // The response could take longer than 7 seconds, it depends on the connection to the server
     read_resp(resp_buf, size_buf, 7, NULL);
-    if (NULL == strstr(resp_buf,"OK")) {
+    if (NULL == strstr(resp_buf, "OK")) {
         return -1;
     }
     // If the response is as expected
@@ -545,7 +598,8 @@ int GPRS::check_new_sms(char *resp_buf, int size_buf)
     int sms_location = 0;
     read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, NULL);
     if (0 != strlen(resp_buf)) {
-        if (NULL == (s = strstr(resp_buf,"+CMTI"))) {
+        s = strstr(resp_buf, "+CMTI");
+        if (NULL == s) {
             return -1; // Invalid response
         }
         sscanf(resp_buf, "+CMTI: %s,%d", s, &sms_location);
@@ -739,8 +793,8 @@ bool GPRS::get_location(float *latitude, float *longitude, char *resp_buf, int s
             token = strtok(NULL, s);
             i++;
         }
-        sscanf(location[1],"%f", longitude);
-        sscanf(location[2],"%f", latitude);
+        sscanf(location[1], "%f", longitude);
+        sscanf(location[2], "%f", latitude);
         return true;
     }
     return false;
