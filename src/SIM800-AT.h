@@ -93,6 +93,15 @@ public:
     int enable_bearer(char *resp_buf, int size_buf);
 
     /**
+     * Check the current bearer status sending the command "AT+SAPBR=2,1"
+     * to the GSM modem.
+     * @return Returns -1 if invalid or no response from the modem.
+     * 0 = Bearer is connecting, 1 = Bearer is connected, 2 = Bearer is closing
+     * 3 = Bearer is closed
+     */
+    int check_bearer_status(void);
+
+    /**
      * Check GSM registration.
      * The function sends the AT command "AT+CREG?" to the GSM modem.
      * @param resp_buf Pointer to the buffer that will store the received data
@@ -138,9 +147,11 @@ public:
     /**
      * Bring Up Wireless Connection with GPRS.
      * The function sends the AT commands "AT+CIICR" to the GSM modem.
+     * If this was setup already, the modem will respond with "ERROR", and this 
+     * is actually not an error.
      * @param resp_buf Pointer to the buffer that will store the received data
      * @param size_buf Size of the receive buffer
-     * @return Returns 0 if the modem responds with "OK".
+     * @return Returns 0 if the modem responds with "OK" or "ERROR".
      * Returns -1 if no response or invalid.
      */
     int activate_gprs(char *resp_buf, int size_buf);
@@ -172,8 +183,8 @@ public:
      * The modem may return ERROR if TCP is not already opened.
      * @param resp_buf Pointer to the buffer that will store the received data
      * @param size_buf Size of the receive buffer
-     * @return Returns -1 on receiving an ERROR or invalid response.
-     * Returns 0 if CLOSE OK is received from the modem.
+     * @return Returns -1 on receiving an invalid response.
+     * Returns 0 if CLOSE OK or ERROR received from the modem.
      */
     int close_tcp(char *resp_buf, int size_buf);
 
@@ -184,16 +195,18 @@ public:
      * The modem may return ERROR if TCP is not already opened.
      * @param resp_buf Pointer to the buffer that will store the received data
      * @param size_buf Size of the receive buffer
-     * @return Returns -1 on receiving an ERROR or invalid response.
-     * Returns 0 if CLOSE OK is received from the modem.
+     * @return Returns -1 on receiving an invalid response.
+     * Returns 0 if CLOSE OK or ERROR received from the modem.
      */
     int close_tcp_quick(char *resp_buf, int size_buf);
 
     /**
      * Closes the GPRS PDP context.
      * The function sends the AT command "AT+CIPSHUT" to the GSM modem.
+     * @return Returns -1 on receiving an invalid response.
+     * Returns 0 if SHUT OK received from the modem.
      */
-    void close_pdp_context(void);
+    int close_pdp_context(void);
 
     int detach_gprs(char *resp_buf, int size_buf);
     int disable_bearer(char *resp_buf, int size_buf);
@@ -220,6 +233,15 @@ public:
     bool get_location(float *latitude, float *longitude, char *resp_buf, int size_buf);
 
     /**
+     * Get the currently selected network operator.
+     * This function sends the command "AT+COPS?" to the modem.
+     * @param resp_buf Pointer to the buffer that will store the received data
+     * @param size_buf Size of the receive buffer
+     * @return Returns -1 if invalid or no response from the modem, and 0 if success
+     */
+    int get_active_network(char *resp_buf, int size_buf);
+
+    /**
      * This function only sends the command (AT+COPS=?) for searching the available networks.
      * Reading the response must be done separately using the read_resp() function.
      * It can take upto 3 minutes to get a response.
@@ -228,9 +250,10 @@ public:
     void search_networks(void);
 
     /**
-     * Function to manually switch to a specific available network.
-     * This function sends the command (AT+COPS=1,1,"OperatorShortName").
-     * This can take upto 3 minutes to get a response. 
+     * Function to manually switch to a specific available network and then 
+     * switches back to auto mode if the manual selection fails.
+     * This function sends the command (AT+COPS=4,1,"OperatorShortName").
+     * This can take upto 2 minutes to get a response. 
      * So, need to be careful about a watchdog reset in the main program.
      * Immediate response-check is also handled in the function.
      * @param resp_buf Pointer to the buffer that will store the received data
