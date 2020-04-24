@@ -26,6 +26,8 @@
 #include "mbed.h"
 
 #define DEFAULT_TIMEOUT 3
+#define MODEM_RESPONSE_OK 0
+#define MODEM_RESPONSE_ERROR -1
 
 /** GPRS class.
  *  Used for mobile communication. attention that GPRS module communicate with MCU in serial protocol

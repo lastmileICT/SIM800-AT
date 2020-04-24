@@ -23,7 +23,7 @@
 int GPRS::request_data(void)
 {
     send_cmd("AT+CIPRXGET=2,100");
-    return 0;
+    return MODEM_RESPONSE_OK;
 }
 
 int GPRS::read_resp(char *resp_buf, int size_buf, int time_out, const char *ack_message)
@@ -50,20 +50,20 @@ int GPRS::read_resp(char *resp_buf, int size_buf, int time_out, const char *ack_
 
                     if (actual_ack_num_bytes == exp_ack_num_bytes) { // Exit condition
                         resp_buf[0] = '\0'; // Null char to clear the buffer
-                        return 0;
+                        return MODEM_RESPONSE_OK;
                     }
                 }
-                index_buf++;
+                index_buf++; // Only increments if a byte received
             }
         }
-        else { // If the received number of bytes reached the maximum expected size
+        else { // If the received number of bytes reached the maximum expected size.
             resp_buf[index_buf] = '\0'; // Add a null char at the end of the received data
-            return -1; // This is actually not an invalid response
+            return MODEM_RESPONSE_ERROR; // This is actually not an invalid response
         }
     }
     // If timed-out
     resp_buf[index_buf] = '\0'; // Add a null char at the end of the received data
-    return -1;
+    return MODEM_RESPONSE_ERROR;
 }
 
 void GPRS::send_cmd(const char *cmd)
@@ -77,17 +77,17 @@ int GPRS::init(char *resp_buf, int size_buf)
     for (int i = 0; i < 3; i++) {
         send_cmd("AT");
         if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
-            return -1;
+            return MODEM_RESPONSE_ERROR;
         }
     }
 
     // Disable modem echo
     send_cmd("ATE0");
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
     // If the response is as expected
-    return 0;
+    return MODEM_RESPONSE_OK;
 }
 
 int GPRS::wakeup(char *resp_buf, int size_buf)
@@ -95,20 +95,20 @@ int GPRS::wakeup(char *resp_buf, int size_buf)
     send_cmd("AT");
     send_cmd("AT+CSCLK=0");
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
     // If the response is as expected
-    return 0;
+    return MODEM_RESPONSE_OK;
 }
 
 int GPRS::check_pin(char *resp_buf, int size_buf)
 {
     send_cmd("AT+CPIN?");
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "READY")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
     // If the response is as expected
-    return 0;
+    return MODEM_RESPONSE_OK;
 }
 
 int GPRS::set_pin(const char* pin, char *resp_buf, int size_buf)
@@ -117,10 +117,10 @@ int GPRS::set_pin(const char* pin, char *resp_buf, int size_buf)
     sprintf(cpin, "AT+CPIN=\"%s\"", pin);
     send_cmd(cpin);
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
     // If the response is as expected
-    return 0;
+    return MODEM_RESPONSE_OK;
 }
 
 int GPRS::enable_ssl(const char *filename, char *resp_buf, int size_buf)
@@ -129,37 +129,37 @@ int GPRS::enable_ssl(const char *filename, char *resp_buf, int size_buf)
     snprintf(cmd, sizeof(cmd), "AT+SSLSETCERT=%s,ABC", filename);
     send_cmd(cmd);
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "+SSLSETCERT: 0")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
 
     send_cmd("AT+CIPSSL=1");
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
 
     // If the response is as expected
-    return 0;
+    return MODEM_RESPONSE_OK;
 }
 
 int GPRS::setup_clock(char *resp_buf, int size_buf)
 {
     send_cmd("AT+CNTPCID=1");
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
 
     send_cmd("AT+CNTP=time1.google.com,0");
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
 
     send_cmd("AT+CNTP");
     if (0 != read_resp(resp_buf, size_buf, 6, "+CNTP: 1")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
 
     // If the response is as expected
-    return 0;
+    return MODEM_RESPONSE_OK;
 }
 
 int GPRS::setup_bearer(const char* apn, const char* user, const char* pass, 
@@ -169,31 +169,31 @@ int GPRS::setup_bearer(const char* apn, const char* user, const char* pass,
     char cmd[64];
     send_cmd("AT+SAPBR=3,1,Contype,GPRS");
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
 
     // Set the access point name string
     snprintf(cmd, sizeof(cmd), "AT+SAPBR=3,1,APN,\"%s\"", apn);
     send_cmd(cmd);
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
 
     // Set the user name for APN
     snprintf(cmd, sizeof(cmd), "AT+SAPBR=3,1,USER,\"%s\"", user);
     send_cmd(cmd);
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
 
     // Set the password for APN
     snprintf(cmd, sizeof(cmd), "AT+SAPBR=3,1,PWD,\"%s\"", pass);
     send_cmd(cmd);
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
     // If the responses are as expected
-    return 0;
+    return MODEM_RESPONSE_OK;
 }
 
 int GPRS::enable_bearer(char *resp_buf, int size_buf)
@@ -202,17 +202,17 @@ int GPRS::enable_bearer(char *resp_buf, int size_buf)
     read_resp(resp_buf, size_buf, 6, NULL);
 
     if (NULL != strstr(resp_buf, "OK")) {
-        return 0;
+        return MODEM_RESPONSE_OK;
     }
     // Returns with ERROR if it's already open or if actually an error
     else if (NULL != strstr(resp_buf, "ERROR")) {
         if (1 == check_bearer_status()) {
             // Bearer already opened. So this is actually not an error.
-            return 0;
+            return MODEM_RESPONSE_OK;
         }
     }
     // An actual error response received or no response yet
-    return -1;
+    return MODEM_RESPONSE_ERROR;
 }
 
 int GPRS::check_bearer_status(void)
@@ -226,7 +226,7 @@ int GPRS::check_bearer_status(void)
     read_resp(bearer_info, sizeof(bearer_info), DEFAULT_TIMEOUT, NULL);
 
     if (0 == strlen(bearer_info)) {
-        return -1; // No response
+        return MODEM_RESPONSE_ERROR; // No response
     }
     else { // Response received
         // Response will be in the format +SAPBR: 1,1,"10.136.76.225"
@@ -245,7 +245,7 @@ int GPRS::check_bearer_status(void)
             return status;
         }
     }
-    return -1; // Invalid response
+    return MODEM_RESPONSE_ERROR; // Invalid response
 }
 
 int GPRS::get_active_network(char *resp_buf, int size_buf)
@@ -253,10 +253,10 @@ int GPRS::get_active_network(char *resp_buf, int size_buf)
     send_cmd("AT+COPS?");
     read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, NULL);
     if ((NULL != strstr(resp_buf, "OK"))) {
-        return 0; // Success
+        return MODEM_RESPONSE_OK;
     }
     // Invalid or no response
-    return -1;
+    return MODEM_RESPONSE_ERROR;
 }
 
 void GPRS::search_networks(void)
@@ -270,11 +270,11 @@ int GPRS::select_network(const char *network, char *resp_buf, int size_buf)
     snprintf(cmd, sizeof(cmd), "AT+COPS=4,1,\"%s\"", network);
     send_cmd(cmd);
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
 
     // If the responses are as expected
-    return 0;
+    return MODEM_RESPONSE_OK;
 }
 
 int GPRS::network_registration_gsm(char *resp_buf, int size_buf)
@@ -283,10 +283,10 @@ int GPRS::network_registration_gsm(char *resp_buf, int size_buf)
     read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, NULL);
     if ((NULL != strstr(resp_buf, "+CREG: 0,1")) || 
         (NULL != strstr(resp_buf, "+CREG: 0,5"))) {
-        return 0; // Success
+        return MODEM_RESPONSE_OK;
     }
     // Not registered yet
-    return -1;
+    return MODEM_RESPONSE_ERROR;
 }
 
 int GPRS::network_registration_gprs(char *resp_buf, int size_buf)
@@ -295,10 +295,10 @@ int GPRS::network_registration_gprs(char *resp_buf, int size_buf)
     read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, NULL);
     if ((NULL != strstr(resp_buf, "+CGREG: 0,1")) || 
         (NULL != strstr(resp_buf, "+CGREG: 0,5"))) {
-        return 0; // Success;
+        return MODEM_RESPONSE_OK;
     }
     // Not registered yet
-    return -1;
+    return MODEM_RESPONSE_ERROR;
 }
 
 int GPRS::check_signal_strength(char *resp_buf, int size_buf)
@@ -310,11 +310,11 @@ int GPRS::check_signal_strength(char *resp_buf, int size_buf)
         sscanf(resp_buf, " +CSQ: %d,", &value);
         int rssi = (2*value - 113);
         if ((rssi >= 0) || (rssi < -155)) {
-            return -1;
+            return MODEM_RESPONSE_ERROR;
         }
         return rssi;
     }
-    return -1; // If no response
+    return MODEM_RESPONSE_ERROR; // If no response
 
 }
 
@@ -339,10 +339,10 @@ uint32_t GPRS::get_time(char *resp_buf, int size_buf)
             return timestamp;
         }
         else {
-            return -1;
+            return MODEM_RESPONSE_ERROR;
         }
     }
-    return -1; // If no response
+    return MODEM_RESPONSE_ERROR; // If no response
 }
 
 int GPRS::attach_gprs(char *resp_buf, int size_buf)
@@ -350,11 +350,11 @@ int GPRS::attach_gprs(char *resp_buf, int size_buf)
     // Attach GPRS
     send_cmd("AT+CGATT=1");
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
 
     // If the responses are as expected
-    return 0;
+    return MODEM_RESPONSE_OK;
 }
 
 int GPRS::enable_get_data_manually(char *resp_buf, int size_buf)
@@ -362,17 +362,17 @@ int GPRS::enable_get_data_manually(char *resp_buf, int size_buf)
     // Startup single IP connection
     send_cmd("AT+CIPMUX=0");
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
 
     //Enable getting data from network manually.
     send_cmd("AT+CIPRXGET=1");
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
 
     // If the responses are as expected
-    return 0;
+    return MODEM_RESPONSE_OK;
 }
 
 int GPRS::set_apn(const char* apn, const char* user, const char* pass, char *resp_buf, int size_buf)
@@ -381,9 +381,9 @@ int GPRS::set_apn(const char* apn, const char* user, const char* pass, char *res
     snprintf(cmd, sizeof(cmd), "AT+CSTT=\"%s\",\"%s\",\"%s\"", apn, user, pass);
     send_cmd(cmd);
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
-    return 0;
+    return MODEM_RESPONSE_OK;
 }
 
 int GPRS::activate_gprs(char *resp_buf, int size_buf)
@@ -393,20 +393,20 @@ int GPRS::activate_gprs(char *resp_buf, int size_buf)
     if ((NULL != strstr(resp_buf, "OK")) || 
         (NULL != strstr(resp_buf, "ERROR"))) {
         // If the responses are as expected - OK or ERROR received
-        return 0;
+        return MODEM_RESPONSE_OK;
     }
     // If no response or invalid
-    return -1;
+    return MODEM_RESPONSE_ERROR;
 }
 
 int GPRS::get_ip(char *resp_buf, int size_buf)
 {
     send_cmd("AT+CIFSR");
     if (0 == read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "ERROR")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
     // If the response gives a valid IP address
-    return 0;
+    return MODEM_RESPONSE_OK;
 }
 
 int GPRS::connect_tcp(const char *domain, const char *port, char *resp_buf, int size_buf)
@@ -418,10 +418,10 @@ int GPRS::connect_tcp(const char *domain, const char *port, char *resp_buf, int 
     read_resp(resp_buf, size_buf, 6, NULL);
     if ((NULL != strstr(resp_buf, "CONNECT OK")) || 
         (NULL != strstr(resp_buf, "ALREADY CONNECT"))) {
-        return 0; // Connection success
+        return MODEM_RESPONSE_OK;
     }
 
-    return -1; // Invalid
+    return MODEM_RESPONSE_ERROR; // Invalid
 }
 
 int GPRS::close_pdp_context(void)
@@ -432,9 +432,9 @@ int GPRS::close_pdp_context(void)
     read_resp(buf, sizeof(buf), 6, NULL);
 
     if (NULL != strstr(buf, "SHUT OK")) {
-        return 0; // Success
+        return MODEM_RESPONSE_OK;
     }
-    return -1;
+    return MODEM_RESPONSE_ERROR;
 }
 
 int GPRS::close_tcp(char *resp_buf, int size_buf)
@@ -444,9 +444,9 @@ int GPRS::close_tcp(char *resp_buf, int size_buf)
     read_resp(resp_buf, size_buf, 6, NULL);
     if ((NULL != strstr(resp_buf, "CLOSE OK")) || 
         (NULL != strstr(resp_buf, "ERROR"))) { // If TCP not opened previously
-        return 0; // Success
+        return MODEM_RESPONSE_OK;
     }
-    return -1; // Invalid
+    return MODEM_RESPONSE_ERROR; // Invalid
 }
 
 int GPRS::close_tcp_quick(char *resp_buf, int size_buf)
@@ -456,29 +456,29 @@ int GPRS::close_tcp_quick(char *resp_buf, int size_buf)
     read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, NULL);
     if ((NULL != strstr(resp_buf, "CLOSE OK")) || 
         (NULL != strstr(resp_buf, "ERROR"))) { // If TCP not opened previously
-        return 0; // Success
+        return MODEM_RESPONSE_OK;
     }
-    return -1; // Invalid
+    return MODEM_RESPONSE_ERROR; // Invalid
 }
 
 int GPRS::detach_gprs(char *resp_buf, int size_buf)
 {
     send_cmd("AT+CGATT=0");
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
     // If the response is as expected
-    return 0;
+    return MODEM_RESPONSE_OK;
 }
 
 int GPRS::disable_bearer(char *resp_buf, int size_buf)
 {
     send_cmd("AT+SAPBR=0,1"); // Up to 65 seconds
     if (0 != read_resp(resp_buf, size_buf, 6, "OK")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
     // If the response is as expected
-    return 0;
+    return MODEM_RESPONSE_OK;
 }
 
 void GPRS::sleep(void)
@@ -486,27 +486,26 @@ void GPRS::sleep(void)
     send_cmd("AT+CSCLK=2");
 }
 
-int GPRS::send_tcp_data(unsigned char *data, int len, char *resp_buf, int size_buf)
+int GPRS::send_tcp_data(unsigned char *data, int len, char *tcp_buf, int size_buf)
 {
     char cmd[64];
     snprintf(cmd, sizeof(cmd), "AT+CIPSEND=%d", len);
     send_cmd(cmd);
-    if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, ">")) {
-        return -1;
+    if (0 != read_resp(tcp_buf, size_buf, DEFAULT_TIMEOUT, ">")) {
+        return MODEM_RESPONSE_ERROR;
     }
 
     // Send data
     for (int i = 0; i < len; i++) {
         gprsSerial.putc(data[i]);
     }
-
     // The response could take longer than 7 seconds, it depends on the connection to the server
-    read_resp(resp_buf, size_buf, 7, NULL);
-    if (NULL == strstr(resp_buf, "OK")) {
-        return -1;
+    read_resp(tcp_buf, size_buf, 7, NULL);
+    if (NULL == strstr(tcp_buf, "OK")) {
+        return MODEM_RESPONSE_ERROR;
     }
     // If the response is as expected
-    return 0;
+    return MODEM_RESPONSE_OK;
 }
 
 void GPRS::clear_buffer(void)
@@ -528,11 +527,11 @@ int GPRS::check_ssl_cert(const char *filename, int filesize, char *resp_buf, int
     snprintf(resp, sizeof(resp), "FSFLSIZE: %d", filesize);
 
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, resp)) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
 
     // If the response is as expected
-    return 0;
+    return MODEM_RESPONSE_OK;
 }
 
 int GPRS::load_ssl(const char *filename, const char *cert, int filesize, char *resp_buf, int size_buf)
@@ -542,54 +541,54 @@ int GPRS::load_ssl(const char *filename, const char *cert, int filesize, char *r
     send_cmd(cmd);
 
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
 
     snprintf(cmd, sizeof(cmd), "AT+FSWRITE=%s,0,%d,5", filename, filesize);
     send_cmd(cmd);
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, ">")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
 
     send_cmd(cert);
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
 
     // If the responses are as expected
-    return 0;
+    return MODEM_RESPONSE_OK;
 }
 
 int GPRS::reset(char *resp_buf, int size_buf)
 {
     send_cmd("AT+CFUN=0");
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
 
     send_cmd("AT+CFUN=1,1");
     if (0 != read_resp(resp_buf, size_buf, 5, "OK")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
 
     // If the responses are as expected
-    return 0;
+    return MODEM_RESPONSE_OK;
 }
 
 int GPRS::init_sms(char *resp_buf, int size_buf)
 {
     send_cmd("AT+CMGF=1");
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
 
     send_cmd("AT+CNMI=2,1,0,0,0");
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
 
     // If the responses are as expected
-    return 0;
+    return MODEM_RESPONSE_OK;
 }
 
 int GPRS::check_new_sms(char *resp_buf, int size_buf)
@@ -600,12 +599,12 @@ int GPRS::check_new_sms(char *resp_buf, int size_buf)
     if (0 != strlen(resp_buf)) {
         s = strstr(resp_buf, "+CMTI");
         if (NULL == s) {
-            return -1; // Invalid response
+            return MODEM_RESPONSE_ERROR; // Invalid response
         }
         sscanf(resp_buf, "+CMTI: %s,%d", s, &sms_location);
         return sms_location;
     }
-    return -1; // No response
+    return MODEM_RESPONSE_ERROR; // No response
 }
 
 int GPRS::get_sms(int index, char* message, int length_message)
@@ -615,7 +614,7 @@ int GPRS::get_sms(int index, char* message, int length_message)
     snprintf(cmd, sizeof(cmd), "AT+CMGR=%d", index);
     send_cmd(cmd);
     read_resp(message, length_message, DEFAULT_TIMEOUT, NULL);
-    return -1; // To be changed in future
+    return MODEM_RESPONSE_ERROR; // To be changed in future
 }
 
 int GPRS::send_get_request(char* url, char *resp_buf, int size_buf)
@@ -623,39 +622,39 @@ int GPRS::send_get_request(char* url, char *resp_buf, int size_buf)
     char cmd[64];
     send_cmd("AT+HTTPINIT");
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
 
     send_cmd("AT+HTTPPARA=\"CID\",1");
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
 
     send_cmd("AT+HTTPSSL=1");
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
 
     send_cmd("AT+HTTPPARA=\"REDIR\",1");
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
 
     snprintf(cmd, sizeof(cmd), "AT+HTTPPARA=\"URL\",\"%s\"", url);
     send_cmd(cmd);
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
 
     send_cmd("AT+HTTPACTION=0");
     if (0 != read_resp(resp_buf, size_buf, 5, "+HTTPACTION")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
 
     send_cmd("AT+HTTPREAD");
 
     // If the responses are as expected
-    return 0;
+    return MODEM_RESPONSE_OK;
 }
 
 int GPRS::bt_power_on(char *resp_buf, int size_buf)
@@ -664,27 +663,27 @@ int GPRS::bt_power_on(char *resp_buf, int size_buf)
     read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, NULL);
     if ((NULL != strstr(resp_buf, "OK")) || 
         (NULL != strstr(resp_buf, "ERROR"))) {
-        return 0; // Connection success
+        return MODEM_RESPONSE_OK; // Connection success
     }
-    return -1;
+    return MODEM_RESPONSE_ERROR;
 }
 
 int GPRS::accept_bt(char *resp_buf, int size_buf)
 {
     send_cmd("AT+BTACPT=1");
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
-    return 0;
+    return MODEM_RESPONSE_OK;
 }
 
 int GPRS::accept_bt_pair(char *resp_buf, int size_buf)
 {
     send_cmd("AT+BTPAIR=1,1");
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
-    return 0;
+    return MODEM_RESPONSE_OK;
 }
 
 int GPRS::send_bt_data(unsigned char *data, int len, char *resp_buf, int size_buf)
@@ -694,7 +693,7 @@ int GPRS::send_bt_data(unsigned char *data, int len, char *resp_buf, int size_bu
     send_cmd(cmd);
 
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, ">")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
 
     // Send data
@@ -703,20 +702,20 @@ int GPRS::send_bt_data(unsigned char *data, int len, char *resp_buf, int size_bu
     }
 
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
 
     // If the response is as expected
-    return 0;
+    return MODEM_RESPONSE_OK;
 }
 
 int GPRS::check_bt_host(const char *host, char *resp_buf, int size_buf)
 {
     send_cmd("AT+BTHOST?");
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, host)) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
-    return 0;
+    return MODEM_RESPONSE_OK;
 }
 
 int GPRS::change_bt_host(const char *host, char *resp_buf, int size_buf)
@@ -725,9 +724,9 @@ int GPRS::change_bt_host(const char *host, char *resp_buf, int size_buf)
     snprintf(cmd, sizeof(cmd), "AT+BTHOST=%s", host);
     send_cmd(cmd);
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
-    return 0;
+    return MODEM_RESPONSE_OK;
 }
 
 //////// THIS IS THE END OF FUNCTIONS CURRENTLY IN USE ////////////
@@ -743,13 +742,13 @@ int GPRS::send_sms(char *number, char *data, char *resp_buf, int size_buf)
     send_cmd(cmd);
 
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, ">")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
 
     // If the responses are as expected
     gprsSerial.puts(data);
     gprsSerial.putc((char)0x1a);
-    return 0;
+    return MODEM_RESPONSE_OK;
 }
 
 int GPRS::delete_sms(int index)
@@ -757,13 +756,13 @@ int GPRS::delete_sms(int index)
     char cmd[32];
     snprintf(cmd, sizeof(cmd), "AT+CMGD=%d", index);
     send_cmd(cmd);
-    return 0;
+    return MODEM_RESPONSE_OK;
 }
 
 int GPRS::answer(void)
 {
     gprsSerial.printf("ATA");
-    return 0;
+    return MODEM_RESPONSE_OK;
 }
 
 int GPRS::call_up(char *number, char *resp_buf, int size_buf)
@@ -771,12 +770,12 @@ int GPRS::call_up(char *number, char *resp_buf, int size_buf)
     send_cmd("AT+COLP=1");
 
     if (0 != read_resp(resp_buf, size_buf, 5, "OK")) {
-        return -1;
+        return MODEM_RESPONSE_ERROR;
     }
 
     // If the responses are as expected 
     gprsSerial.printf("\r\nATD+ %s;", number);
-    return 0;
+    return MODEM_RESPONSE_OK;
 }
 
 bool GPRS::get_location(float *latitude, float *longitude, char *resp_buf, int size_buf)
