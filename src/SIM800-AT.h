@@ -23,11 +23,16 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string>
+#ifdef __MBED__
 #include "mbed.h"
+#elif defined(__ZEPHYR__)
+#include <zephyr.h>
+#endif
 
 #define DEFAULT_TIMEOUT 3
 #define MODEM_RESPONSE_OK 0
 #define MODEM_RESPONSE_ERROR -1
+
 
 /** GPRS class.
  *  Used for mobile communication. attention that GPRS module communicate with MCU in serial protocol
@@ -35,6 +40,7 @@
 class GPRS
 {
 public:
+#ifdef __MBED__
     /** Create GPRS instance
      *  @param tx  uart transmit pin to communicate with GPRS module
      *  @param rx  uart receive pin to communicate with GPRS module
@@ -44,6 +50,12 @@ public:
     GPRS(PinName tx, PinName rx, PinName ri, int baudRate) : gprsSerial(tx, rx) {};
 
     Serial gprsSerial;
+
+#elif defined(__ZEPHYR__)
+    // void gprs_init(const char* uart_gsm);
+    GPRS() {};
+
+#endif
 
     int request_data();
 

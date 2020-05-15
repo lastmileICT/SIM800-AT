@@ -20,6 +20,18 @@
 #include "SIM800-AT.h"
 #include <inttypes.h>
 
+#ifdef __ZEPHYR__
+#include <zephyr.h>
+#include <drivers/uart.h>
+#include <string.h>
+#include <time.h>
+
+#define UART_GSM DT_ALIAS_UART_UEXT_LABEL
+
+struct device *gsm_dev = device_get_binding(UART_GSM);
+
+#endif
+
 int GPRS::request_data(void)
 {
     send_cmd("AT+CIPRXGET=2,100");
@@ -28,17 +40,29 @@ int GPRS::request_data(void)
 
 int GPRS::read_resp(char *resp_buf, int size_buf, int time_out, const char *ack_message)
 {
+#ifdef __MBED__
     Timer t;
     t.start();
+#elif defined(__ZEPHYR__)
+    uint32_t t1 = k_uptime_get() / 1000;
+#endif
+
     int index_buf = 0;
     int exp_ack_num_bytes = strlen(ack_message);
     int actual_ack_num_bytes = 0;
 
+#ifdef __MBED__
     while (t.read() < time_out) {
+#elif defined(__ZEPHYR__)
+    while (((k_uptime_get() / 1000) - t1) <= time_out) { // timer not expired yet
+#endif
         if (index_buf < size_buf-1) {
+#ifdef __MBED__
             if (gprsSerial.readable()) {
                 resp_buf[index_buf] = gprsSerial.getc();
-
+#elif defined(__ZEPHYR__)
+            if (uart_poll_in(gsm_dev, (unsigned char *)&resp_buf[index_buf]) == 0) {
+#endif
                 if (ack_message != NULL) { //Decide if an acknowledgement check required
                     // Checks if the acknowledgement string is received correctly
                     if (resp_buf[index_buf] == ack_message[actual_ack_num_bytes]) {
@@ -68,8 +92,16 @@ int GPRS::read_resp(char *resp_buf, int size_buf, int time_out, const char *ack_
 
 void GPRS::send_cmd(const char *cmd)
 {
+#ifdef __MBED__
     gprsSerial.puts(cmd);
     gprsSerial.puts("\r\n");
+#elif defined(__ZEPHYR__)
+    for (int i = 0; i < (int)strlen(cmd); i++) {
+            uart_poll_out(gsm_dev, cmd[i]);
+        }
+    uart_poll_out(gsm_dev, '\r');
+    uart_poll_out(gsm_dev, '\n');
+#endif
 }
 
 int GPRS::init(char *resp_buf, int size_buf)
@@ -303,10 +335,11 @@ int GPRS::network_registration_gprs(char *resp_buf, int size_buf)
 
 int GPRS::check_signal_strength(char *resp_buf, int size_buf)
 {
-    int value;
+    int value = 0;
     send_cmd("AT+CSQ");
     read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, NULL);
     if (0 != strlen(resp_buf)) {
+        // Extract the integer value from the received string.
         sscanf(resp_buf, " +CSQ: %d,", &value);
         int rssi = (2*value - 113);
         if ((rssi >= 0) || (rssi < -155)) {
@@ -315,16 +348,18 @@ int GPRS::check_signal_strength(char *resp_buf, int size_buf)
         return rssi;
     }
     return MODEM_RESPONSE_ERROR; // If no response
-
 }
 
 uint32_t GPRS::get_time(char *resp_buf, int size_buf)
 {
     send_cmd("AT+CCLK?");
     read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, NULL);
+
     if (0 != strlen(resp_buf)) {
         struct tm timeinfo;
         int timezone;
+
+        // Response format is +CCLK: "20/05/08,11:05:20+00"
         int items = sscanf(resp_buf, " +CCLK: \"%2d/%2d/%2d,%2d:%2d:%2d%3d\" ",
             &timeinfo.tm_year, &timeinfo.tm_mon, &timeinfo.tm_mday,
             &timeinfo.tm_hour, &timeinfo.tm_min, &timeinfo.tm_sec,
@@ -497,7 +532,11 @@ int GPRS::send_tcp_data(unsigned char *data, int len, char *tcp_buf, int size_bu
 
     // Send data
     for (int i = 0; i < len; i++) {
+#ifdef __MBED__
         gprsSerial.putc(data[i]);
+#elif defined(__ZEPHYR__)
+        uart_poll_out(gsm_dev, data[i]);
+#endif
     }
     // The response could take longer than 7 seconds, it depends on the connection to the server
     read_resp(tcp_buf, size_buf, 7, NULL);
@@ -512,9 +551,16 @@ void GPRS::clear_buffer(void)
 {
     // For non-buffered serial, even one getc would be enough...
     // Using for-loop to prevent accidental indefinite loop
+#ifdef __MBED__
     for (int i = 0; i < 1000 && gprsSerial.readable(); i++) {
         gprsSerial.getc();
     }
+
+#elif defined(__ZEPHYR__)
+    unsigned char rec_char;
+    for (int i = 0; i < 1000 && (uart_poll_in(gsm_dev, &rec_char) == 0); i++) {;}
+#endif
+
 }
 
 int GPRS::check_ssl_cert(const char *filename, int filesize, char *resp_buf, int size_buf)
@@ -698,7 +744,11 @@ int GPRS::send_bt_data(unsigned char *data, int len, char *resp_buf, int size_bu
 
     // Send data
     for (int i = 0; i < len; i++) {
+#ifdef __MBED__
         gprsSerial.putc(data[i]);
+#elif defined(__ZEPHYR__)
+        uart_poll_out(gsm_dev, data[i]);
+#endif
     }
 
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
@@ -735,9 +785,18 @@ int GPRS::change_bt_host(const char *host, char *resp_buf, int size_buf)
 int GPRS::send_sms(char *number, char *data, char *resp_buf, int size_buf)
 {
     char cmd[64];
+
+#ifdef __MBED__
     while (gprsSerial.readable()) {
         gprsSerial.getc();
     }
+#elif defined(__ZEPHYR__)
+    unsigned char rec_char;
+    if (uart_poll_in(gsm_dev, &rec_char) == 0) {
+        printf("%c", rec_char);
+    }
+#endif
+
     snprintf(cmd, sizeof(cmd), "AT+CMGS=\"%s\"", number);
     send_cmd(cmd);
 
@@ -746,8 +805,16 @@ int GPRS::send_sms(char *number, char *data, char *resp_buf, int size_buf)
     }
 
     // If the responses are as expected
+#ifdef __MBED__
     gprsSerial.puts(data);
     gprsSerial.putc((char)0x1a);
+#elif defined(__ZEPHYR__)
+    for (int i = 0; i < (int)strlen(data); i++) {
+        uart_poll_out(gsm_dev, data[i]);
+    }
+    uart_poll_out(gsm_dev, (char)0x1a);
+#endif
+
     return MODEM_RESPONSE_OK;
 }
 
@@ -761,7 +828,9 @@ int GPRS::delete_sms(int index)
 
 int GPRS::answer(void)
 {
+#ifdef __MBED__
     gprsSerial.printf("ATA");
+#endif
     return MODEM_RESPONSE_OK;
 }
 
@@ -774,7 +843,9 @@ int GPRS::call_up(char *number, char *resp_buf, int size_buf)
     }
 
     // If the responses are as expected 
+#ifdef __MBED__
     gprsSerial.printf("\r\nATD+ %s;", number);
+#endif
     return MODEM_RESPONSE_OK;
 }
 
