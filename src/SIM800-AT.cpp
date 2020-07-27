@@ -26,7 +26,7 @@
 #include <string.h>
 #include <time.h>
 
-#define UART_GSM DT_ALIAS_UART_UEXT_LABEL
+#define UART_GSM DT_LABEL(DT_ALIAS(uart_uext))
 
 struct device *gsm_dev = device_get_binding(UART_GSM);
 
@@ -194,7 +194,7 @@ int GPRS::setup_clock(char *resp_buf, int size_buf)
     return MODEM_RESPONSE_OK;
 }
 
-int GPRS::setup_bearer(const char* apn, const char* user, const char* pass, 
+int GPRS::setup_bearer(const char* apn, const char* user, const char* pass,
                         char *resp_buf, int size_buf)
 {
     // Set the type of Internet connection as GPRS
@@ -313,7 +313,7 @@ int GPRS::network_registration_gsm(char *resp_buf, int size_buf)
 {
     send_cmd("AT+CREG?");
     read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, NULL);
-    if ((NULL != strstr(resp_buf, "+CREG: 0,1")) || 
+    if ((NULL != strstr(resp_buf, "+CREG: 0,1")) ||
         (NULL != strstr(resp_buf, "+CREG: 0,5"))) {
         return MODEM_RESPONSE_OK;
     }
@@ -325,7 +325,7 @@ int GPRS::network_registration_gprs(char *resp_buf, int size_buf)
 {
     send_cmd("AT+CGREG?");
     read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, NULL);
-    if ((NULL != strstr(resp_buf, "+CGREG: 0,1")) || 
+    if ((NULL != strstr(resp_buf, "+CGREG: 0,1")) ||
         (NULL != strstr(resp_buf, "+CGREG: 0,5"))) {
         return MODEM_RESPONSE_OK;
     }
@@ -368,7 +368,7 @@ uint32_t GPRS::get_time(char *resp_buf, int size_buf)
         if (items == 7) {                   // all information found
             timeinfo.tm_year += 100;        // struct tm starts counting years from 1900
             timeinfo.tm_mon -= 1;           // struct tm starts counting months from 0 for January
-            // SIM800 provides timezone as multiple of 15 mins but if using NTP, time will 
+            // SIM800 provides timezone as multiple of 15 mins but if using NTP, time will
             // always be the specified zone
             uint32_t timestamp = mktime(&timeinfo); // - timezone * 15 * 60;
             return timestamp;
@@ -425,7 +425,7 @@ int GPRS::activate_gprs(char *resp_buf, int size_buf)
 {
     send_cmd("AT+CIICR"); // Upto 85 seconds
     read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, NULL);
-    if ((NULL != strstr(resp_buf, "OK")) || 
+    if ((NULL != strstr(resp_buf, "OK")) ||
         (NULL != strstr(resp_buf, "ERROR"))) {
         // If the responses are as expected - OK or ERROR received
         return MODEM_RESPONSE_OK;
@@ -451,7 +451,7 @@ int GPRS::connect_tcp(const char *domain, const char *port, char *resp_buf, int 
     send_cmd(cmd);
 
     read_resp(resp_buf, size_buf, 6, NULL);
-    if ((NULL != strstr(resp_buf, "CONNECT OK")) || 
+    if ((NULL != strstr(resp_buf, "CONNECT OK")) ||
         (NULL != strstr(resp_buf, "ALREADY CONNECT"))) {
         return MODEM_RESPONSE_OK;
     }
@@ -477,7 +477,7 @@ int GPRS::close_tcp(char *resp_buf, int size_buf)
     // closes the TCP connection
     send_cmd("AT+CIPCLOSE=0");
     read_resp(resp_buf, size_buf, 6, NULL);
-    if ((NULL != strstr(resp_buf, "CLOSE OK")) || 
+    if ((NULL != strstr(resp_buf, "CLOSE OK")) ||
         (NULL != strstr(resp_buf, "ERROR"))) { // If TCP not opened previously
         return MODEM_RESPONSE_OK;
     }
@@ -489,7 +489,7 @@ int GPRS::close_tcp_quick(char *resp_buf, int size_buf)
     // closes the TCP connection quickly
     send_cmd("AT+CIPCLOSE=1");
     read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, NULL);
-    if ((NULL != strstr(resp_buf, "CLOSE OK")) || 
+    if ((NULL != strstr(resp_buf, "CLOSE OK")) ||
         (NULL != strstr(resp_buf, "ERROR"))) { // If TCP not opened previously
         return MODEM_RESPONSE_OK;
     }
@@ -707,7 +707,7 @@ int GPRS::bt_power_on(char *resp_buf, int size_buf)
 {
     send_cmd("AT+BTPOWER=1");
     read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, NULL);
-    if ((NULL != strstr(resp_buf, "OK")) || 
+    if ((NULL != strstr(resp_buf, "OK")) ||
         (NULL != strstr(resp_buf, "ERROR"))) {
         return MODEM_RESPONSE_OK; // Connection success
     }
@@ -842,7 +842,7 @@ int GPRS::call_up(char *number, char *resp_buf, int size_buf)
         return MODEM_RESPONSE_ERROR;
     }
 
-    // If the responses are as expected 
+    // If the responses are as expected
 #ifdef __MBED__
     gprsSerial.printf("\r\nATD+ %s;", number);
 #endif
