@@ -225,7 +225,7 @@ public:
     int detach_gprs(char *resp_buf, int size_buf);
     int disable_bearer(char *resp_buf, int size_buf);
     void sleep(void);
-    int send_tcp_data(unsigned char *data, int len, char *resp_buf, int size_buf);
+    int send_tcp_data(unsigned char *data, int len, char *resp_buf, int size_buf, uint8_t timeout);
     int check_ssl_cert(const char *filename, int filesize, char *resp_buf, int size_buf);
     int load_ssl(const char *filename, const char *cert, int filesize, char *resp_buf, int size_buf);
     int reset(char *resp_buf, int size_buf);
