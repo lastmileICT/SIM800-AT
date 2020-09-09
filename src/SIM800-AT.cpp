@@ -521,7 +521,7 @@ void GPRS::sleep(void)
     send_cmd("AT+CSCLK=2");
 }
 
-int GPRS::send_tcp_data(unsigned char *data, int len, char *tcp_buf, int size_buf)
+int GPRS::send_tcp_data(unsigned char *data, int len, char *tcp_buf, int size_buf, uint8_t timeout)
 {
     char cmd[64];
     snprintf(cmd, sizeof(cmd), "AT+CIPSEND=%d", len);
@@ -539,7 +539,7 @@ int GPRS::send_tcp_data(unsigned char *data, int len, char *tcp_buf, int size_bu
 #endif
     }
     // The response could take longer than 7 seconds, it depends on the connection to the server
-    read_resp(tcp_buf, size_buf, 7, NULL);
+    read_resp(tcp_buf, size_buf, timeout, NULL);
     if (NULL == strstr(tcp_buf, "OK")) {
         return MODEM_RESPONSE_ERROR;
     }
