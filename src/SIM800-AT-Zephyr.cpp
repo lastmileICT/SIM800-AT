@@ -20,7 +20,15 @@
 #include "SIM800-AT.h"
 #include <inttypes.h>
 
-#ifdef __MBED__
+#ifdef __ZEPHYR__
+#include <zephyr.h>
+#include <drivers/uart.h>
+#include <string.h>
+#include <time.h>
+
+#define UART_GSM DT_LABEL(DT_ALIAS(uart_uext))
+
+struct device *gsm_dev = device_get_binding(UART_GSM);
 
 int GPRS::request_data(void)
 {
@@ -30,18 +38,14 @@ int GPRS::request_data(void)
 
 int GPRS::read_resp(char *resp_buf, int size_buf, int time_out, const char *ack_message)
 {
-
-    Timer t;
-    t.start();
-
+    uint32_t t1 = k_uptime_get() / 1000;
     int index_buf = 0;
     int exp_ack_num_bytes = strlen(ack_message);
     int actual_ack_num_bytes = 0;
 
-    while (t.read() < time_out) {
+    while (((k_uptime_get() / 1000) - t1) <= time_out) { // timer not expired yet
         if (index_buf < size_buf-1) {
-            if (gprsSerial.readable()) {
-                resp_buf[index_buf] = gprsSerial.getc();
+            if (uart_poll_in(gsm_dev, (unsigned char *)&resp_buf[index_buf]) == 0) {
                 if (ack_message != NULL) { //Decide if an acknowledgement check required
                     // Checks if the acknowledgement string is received correctly
                     if (resp_buf[index_buf] == ack_message[actual_ack_num_bytes]) {
@@ -71,8 +75,11 @@ int GPRS::read_resp(char *resp_buf, int size_buf, int time_out, const char *ack_
 
 void GPRS::send_cmd(const char *cmd)
 {
-    gprsSerial.puts(cmd);
-    gprsSerial.puts("\r\n");
+    for (int i = 0; i < (int)strlen(cmd); i++) {
+            uart_poll_out(gsm_dev, cmd[i]);
+        }
+    uart_poll_out(gsm_dev, '\r');
+    uart_poll_out(gsm_dev, '\n');
 }
 
 int GPRS::init(char *resp_buf, int size_buf)
@@ -503,7 +510,7 @@ int GPRS::send_tcp_data(unsigned char *data, int len, char *tcp_buf, int size_bu
 
     // Send data
     for (int i = 0; i < len; i++) {
-        gprsSerial.putc(data[i]);
+        uart_poll_out(gsm_dev, data[i]);
     }
     // The response could take longer than 7 seconds, it depends on the connection to the server
     read_resp(tcp_buf, size_buf, timeout, NULL);
@@ -518,9 +525,8 @@ void GPRS::clear_buffer(void)
 {
     // For non-buffered serial, even one getc would be enough...
     // Using for-loop to prevent accidental indefinite loop
-    for (int i = 0; i < 1000 && gprsSerial.readable(); i++) {
-        gprsSerial.getc();
-    }
+    unsigned char rec_char;
+    for (int i = 0; i < 1000 && (uart_poll_in(gsm_dev, &rec_char) == 0); i++) {;}
 }
 
 int GPRS::check_ssl_cert(const char *filename, int filesize, char *resp_buf, int size_buf)
@@ -704,7 +710,7 @@ int GPRS::send_bt_data(unsigned char *data, int len, char *resp_buf, int size_bu
 
     // Send data
     for (int i = 0; i < len; i++) {
-        gprsSerial.putc(data[i]);
+        uart_poll_out(gsm_dev, data[i]);
     }
 
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
@@ -742,8 +748,9 @@ int GPRS::send_sms(char *number, char *data, char *resp_buf, int size_buf)
 {
     char cmd[64];
 
-    while (gprsSerial.readable()) {
-        gprsSerial.getc();
+    unsigned char rec_char;
+    if (uart_poll_in(gsm_dev, &rec_char) == 0) {
+        printf("%c", rec_char);
     }
 
     snprintf(cmd, sizeof(cmd), "AT+CMGS=\"%s\"", number);
@@ -754,8 +761,10 @@ int GPRS::send_sms(char *number, char *data, char *resp_buf, int size_buf)
     }
 
     // If the responses are as expected
-    gprsSerial.puts(data);
-    gprsSerial.putc((char)0x1a);
+    for (int i = 0; i < (int)strlen(data); i++) {
+        uart_poll_out(gsm_dev, data[i]);
+    }
+    uart_poll_out(gsm_dev, (char)0x1a);
 
     return MODEM_RESPONSE_OK;
 }
@@ -770,7 +779,6 @@ int GPRS::delete_sms(int index)
 
 int GPRS::answer(void)
 {
-    gprsSerial.printf("ATA");
     return MODEM_RESPONSE_OK;
 }
 
@@ -783,7 +791,6 @@ int GPRS::call_up(char *number, char *resp_buf, int size_buf)
     }
 
     // If the responses are as expected
-    gprsSerial.printf("\r\nATD+ %s;", number);
     return MODEM_RESPONSE_OK;
 }
 
@@ -808,6 +815,6 @@ bool GPRS::get_location(float *latitude, float *longitude, char *resp_buf, int s
     return false;
 }
 
-#endif // MBED
+#endif // ZEPHYR
 
 #endif /* UNIT_TEST */
