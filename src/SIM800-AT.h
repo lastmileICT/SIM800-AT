@@ -33,6 +33,17 @@
 #define MODEM_RESPONSE_OK 0
 #define MODEM_RESPONSE_ERROR -1
 
+#define BUF_SIZE_DEFAULT 200
+
+#ifdef __ZEPHYR__
+
+/** Initializes the UART interrupts
+ * The ISR call-back function read_resp() is configured here.
+ * No arguments are passed to the ISR as of now.
+ */
+void init_modem(void);
+
+#endif // #ifdef __ZEPHYR__
 
 /** GPRS class.
  *  Used for mobile communication. attention that GPRS module communicate with MCU in serial protocol
@@ -51,21 +62,10 @@ public:
 
     Serial gprsSerial;
 
-#elif defined(__ZEPHYR__)
-    // void gprs_init(const char* uart_gsm);
-    GPRS() {};
-
-#endif
-
-    int request_data();
-
     /** 
      * Reads the server response through serial port. The function is used in 2 ways. 
      * 1) To read-out the buffer, in which case, no return is actually expected.
      * 2) To read-out and also check the response against an expected message.
-     * @param resp_buf Pointer to the buffer that will store the received data
-     * @param size_buf Size of the receive buffer. This must be set carefully to
-     * check the acknowledgement message correctly.
      * @param time_out Maximum time (seconds) spent for reading the serial port
      * @param ack_message Pointer to a string containing the expected message.
      * This argument should be NULL, if no acknowledgment-check is needed. 
@@ -80,154 +80,30 @@ public:
     int wakeup(char *resp_buf, int size_buf);
     int check_pin(char *resp_buf, int size_buf);
     int set_pin(const char* pin, char *resp_buf, int size_buf);
-    int enable_ssl(const char *filename, char *resp_buf, int size_buf);
+    int check_ssl_cert(const char *filename, int filesize, char *resp_buf, int size_buf);
+    int load_ssl(const char *filename, const char *cert, int filesize, char *resp_buf, int size_buf);
+    int ssl_set_cert(const char *filename, char *resp_buf, int size_buf);
+    int enable_ssl(char *resp_buf, int size_buf);
+    int enable_get_data_manually(char *resp_buf, int size_buf);
     int setup_clock(char *resp_buf, int size_buf);
-
-    /**
-     * Bearer Settings for Applications Based on IP. This configures the Access Point Name (APN) 
-     * parameters for internet access. The function sends the AT command "AT+SAPBR=3,......" 
-     * to the GSM modem.
-     * @param apn APN for the internet gateway
-     * @param user User ID for APN
-     * @param pass Password for APN
-     * @param resp_buf Pointer to the buffer that will store the received data
-     * @param size_buf Size of the receive buffer
-     * @return Returns -1 if invalid or no response from the modem
-     */
     int setup_bearer(const char* apn, const char* user, const char* pass, 
-                        char *resp_buf, int size_buf);
-
-    /**
-     * Enables/opens the bearer, provided the settings have been done. 
-     * The function sends the AT command "AT+SAPBR=1,.." to the GSM modem.
-     * @param resp_buf Pointer to the buffer that will store the received data
-     * @param size_buf Size of the receive buffer
-     * @return Returns -1 if invalid or no response from the modem
-     */
+                    char *resp_buf, int size_buf);
     int enable_bearer(char *resp_buf, int size_buf);
-
-    /**
-     * Check the current bearer status sending the command "AT+SAPBR=2,1"
-     * to the GSM modem.
-     * @return Returns -1 if invalid or no response from the modem.
-     * 0 = Bearer is connecting, 1 = Bearer is connected, 2 = Bearer is closing
-     * 3 = Bearer is closed
-     */
-    int check_bearer_status(void);
-
-    /**
-     * Check GSM registration.
-     * The function sends the AT command "AT+CREG?" to the GSM modem.
-     * @param resp_buf Pointer to the buffer that will store the received data
-     * @param size_buf Size of the receive buffer
-     * @return Returns -1 if invalid or no response from the modem
-     */
     int network_registration_gsm(char *resp_buf, int size_buf);
-
-    /**
-     * Check packet switched registration.
-     * The function sends the AT command "AT+CGREG?" to the GSM modem.
-     * @param resp_buf Pointer to the buffer that will store the received data
-     * @param size_buf Size of the receive buffer
-     * @return Returns -1 if invalid or no response from the modem
-     */
     int network_registration_gprs(char *resp_buf, int size_buf);
-
-    /**
-     * The function sends the AT command "AT+CSQ" to the GSM modem and gets
-     * the signal strength value (RSSI) as the response.
-     * @param resp_buf Pointer to the buffer that will store the received data
-     * @param size_buf Size of the receive buffer
-     * @return Returns -1 if invalid RSSI or no response from the modem
-     */
     int check_signal_strength(char *resp_buf, int size_buf);
     uint32_t get_time(char *resp_buf, int size_buf);
     int attach_gprs(char *resp_buf, int size_buf);
-    int enable_get_data_manually(char *resp_buf, int size_buf);
-
-    /**
-     * Start Task and Set APN, USER NAME, PASSWORD.
-     * The function sends the AT command "AT+CSTT=apn,user,pass" to the GSM modem.
-     * @param apn APN details
-     * @param user User ID
-     * @param pass Password
-     * @param resp_buf Pointer to the buffer that will store the received data
-     * @param size_buf Size of the receive buffer
-     * @return Returns -1 if invalid or no response from the modem, 0 if success.
-     */
     int set_apn(const char* apn, const char* user, const char* pass, 
                 char *resp_buf, int size_buf);
-
-    /**
-     * Bring Up Wireless Connection with GPRS.
-     * The function sends the AT commands "AT+CIICR" to the GSM modem.
-     * If this was setup already, the modem will respond with "ERROR", and this 
-     * is actually not an error.
-     * @param resp_buf Pointer to the buffer that will store the received data
-     * @param size_buf Size of the receive buffer
-     * @return Returns 0 if the modem responds with "OK" or "ERROR".
-     * Returns -1 if no response or invalid.
-     */
     int activate_gprs(char *resp_buf, int size_buf);
-
-    /**
-     * Get Local IP address, if the PDP context has been activated before.
-     * The function sends the AT commands "AT+CIFSR" to the GSM modem.
-     * @param resp_buf Pointer to the buffer that will store the received data
-     * @param size_buf Size of the receive buffer
-     * @return Returns 0 if the modem response is a valid IP address. Returns -1 if the GSM modem 
-     * responds with an "ERROR". This can happen if the PDP context has not been activated already.
-     */
     int get_ip(char *resp_buf, int size_buf);
-
-    /**
-     * Opens TCP connection sending the AT command "AT+CIPSTART=TCP,domain,port" to the GSM modem.
-     * Expects a "CONNECT OK" or "ALREADY CONNECT" from the modem on successful connection.
-     * @param domain  Remote server domain name
-     * @param port Remote server port
-     * @param resp_buf Pointer to the buffer that will store the received data
-     * @param size_buf Size of the receive buffer
-     * @return Returns -1 if invalid or no response from the modem
-     */
     int connect_tcp(const char* domain, const char* port, char *resp_buf, int size_buf);
-
-    /**
-     * Closes the TCP connection.
-     * The function sends the AT command "AT+CIPCLOSE=0" to the GSM modem.
-     * The modem may return ERROR if TCP is not already opened.
-     * @param resp_buf Pointer to the buffer that will store the received data
-     * @param size_buf Size of the receive buffer
-     * @return Returns -1 on receiving an invalid response.
-     * Returns 0 if CLOSE OK or ERROR received from the modem.
-     */
     int close_tcp(char *resp_buf, int size_buf);
-
-
-    /**
-     * Quickly closes the TCP connection.
-     * The function sends the AT command "AT+CIPCLOSE=1" to the GSM modem.
-     * The modem may return ERROR if TCP is not already opened.
-     * @param resp_buf Pointer to the buffer that will store the received data
-     * @param size_buf Size of the receive buffer
-     * @return Returns -1 on receiving an invalid response.
-     * Returns 0 if CLOSE OK or ERROR received from the modem.
-     */
     int close_tcp_quick(char *resp_buf, int size_buf);
-
-    /**
-     * Closes the GPRS PDP context.
-     * The function sends the AT command "AT+CIPSHUT" to the GSM modem.
-     * @return Returns -1 on receiving an invalid response.
-     * Returns 0 if SHUT OK received from the modem.
-     */
-    int close_pdp_context(void);
-
     int detach_gprs(char *resp_buf, int size_buf);
     int disable_bearer(char *resp_buf, int size_buf);
-    void sleep(void);
     int send_tcp_data(unsigned char *data, int len, char *resp_buf, int size_buf, uint8_t timeout);
-    int check_ssl_cert(const char *filename, int filesize, char *resp_buf, int size_buf);
-    int load_ssl(const char *filename, const char *cert, int filesize, char *resp_buf, int size_buf);
     int reset(char *resp_buf, int size_buf);
     int init_sms(char *resp_buf, int size_buf);
     int check_new_sms(char *resp_buf, int size_buf);
@@ -240,20 +116,187 @@ public:
     int check_bt_host(const char *host, char *resp_buf, int size_buf);
     int change_bt_host(const char* host, char *resp_buf, int size_buf);
     int send_sms(char *number, char *data, char *resp_buf, int size_buf);
-    int delete_sms(int index);
-    int answer(void);
     int call_up(char *number, char *resp_buf, int size_buf);
-
     bool get_location(float *latitude, float *longitude, char *resp_buf, int size_buf);
+    int get_active_network(char *resp_buf, int size_buf);
+    int select_network(const char *network, char *resp_buf, int size_buf);
+
+#elif defined(__ZEPHYR__)
+
+    GPRS() {};
+
+    int init(void);
+    int wakeup(void);
+    int check_pin(void);
+    int set_pin(const char* pin);
+    int check_ssl_cert(const char *filename, int filesize);
+    int load_ssl(const char *filename, const char *cert, int filesize);
+    int ssl_set_cert(const char *filename);
+    int enable_ssl(void);
+    int enable_get_data_manually(void);
+    int setup_clock(void);
+    /**
+     * Bearer Settings for Applications Based on IP. This configures the Access Point Name (APN) 
+     * parameters for internet access. The function sends the AT command "AT+SAPBR=3,......" 
+     * to the GSM modem.
+     * @param apn APN for the internet gateway
+     * @param user User ID for APN
+     * @param pass Password for APN
+     * @return Returns -1 if invalid or no response from the modem
+     */
+
+    int setup_bearer(const char* apn, const char* user, const char* pass);
+    /**
+     * Enables/opens the bearer, provided the settings have been done. 
+     * The function sends the AT command "AT+SAPBR=1,.." to the GSM modem.
+     * @return Returns -1 if invalid or no response from the modem
+     */
+    int enable_bearer(void);
+
+    /**
+     * Check GSM registration.
+     * The function sends the AT command "AT+CREG?" to the GSM modem.
+     * @return Returns -1 if invalid or no response from the modem
+     */
+    int network_registration_gsm(void);
+
+    /**
+     * Check packet switched registration.
+     * The function sends the AT command "AT+CGREG?" to the GSM modem.
+     * @return Returns -1 if invalid or no response from the modem
+     */
+    int network_registration_gprs(void);
+
+    /**
+     * The function sends the AT command "AT+CSQ" to the GSM modem and gets
+     * the signal strength value (RSSI) as the response.
+     * @return Returns -1 if invalid RSSI or no response from the modem
+     */
+    int check_signal_strength(void);
+
+    uint32_t get_time(void);
+    int attach_gprs(void);
+
+    /**
+     * Start Task and Set APN, USER NAME, PASSWORD.
+     * The function sends the AT command "AT+CSTT=apn,user,pass" to the GSM modem.
+     * @param apn APN details
+     * @param user User ID
+     * @param pass Password
+     * @return Returns -1 if invalid or no response from the modem, 0 if success.
+     */
+    int set_apn(const char* apn, const char* user, const char* pass);
+
+    /**
+     * Bring Up Wireless Connection with GPRS.
+     * The function sends the AT commands "AT+CIICR" to the GSM modem.
+     * If this was setup already, the modem will respond with "ERROR", and this 
+     * is actually not an error.
+     * @return Returns 0 if the modem responds with "OK" or "ERROR".
+     * Returns -1 if no response or invalid.
+     */
+    int activate_gprs(void);
+
+    /**
+     * Get Local IP address, if the PDP context has been activated before.
+     * The function sends the AT commands "AT+CIFSR" to the GSM modem.
+     * @return Returns 0 if the modem response is a valid IP address. Returns -1 if the GSM modem 
+     * responds with an "ERROR". This can happen if the PDP context has not been activated already.
+     */
+    int get_ip(void);
+
+    /**
+     * Opens TCP connection sending the AT command "AT+CIPSTART=TCP,domain,port" to the GSM modem.
+     * Expects a "CONNECT OK" or "ALREADY CONNECT" from the modem on successful connection.
+     * @param domain  Remote server domain name
+     * @param port Remote server port
+     * @return Returns -1 if invalid or no response from the modem
+     */
+    int connect_tcp(const char* domain, const char* port);
+
+    /**
+     * Closes the TCP connection.
+     * The function sends the AT command "AT+CIPCLOSE=0" to the GSM modem.
+     * The modem may return ERROR if TCP is not already opened.
+     * @return Returns -1 on receiving an invalid response.
+     * Returns 0 if CLOSE OK or ERROR received from the modem.
+     */
+    int close_tcp(void);
+
+    /**
+     * Quickly closes the TCP connection.
+     * The function sends the AT command "AT+CIPCLOSE=1" to the GSM modem.
+     * The modem may return ERROR if TCP is not already opened.
+     * @return Returns -1 on receiving an invalid response.
+     * Returns 0 if CLOSE OK or ERROR received from the modem.
+     */
+    int close_tcp_quick(void);
+
+    int detach_gprs(void);
+    int disable_bearer(void);
+    int send_tcp_data(unsigned char *data, int len, uint8_t timeout);
+    int reset(void);
+    int init_sms(void);
+    int check_new_sms(void);
+    int get_sms(int index);
+    int send_get_request(char* url);
+    int bt_power_on(void);
+    int accept_bt(void);
+    int accept_bt_pair(void);
+    int send_bt_data(unsigned char *data, int len);
+    int check_bt_host(const char *host);
+    int change_bt_host(const char* host);
+    int send_sms(char *number, char *data);
+    int call_up(char *number);
+    bool get_location(float *latitude, float *longitude);
 
     /**
      * Get the currently selected network operator.
      * This function sends the command "AT+COPS?" to the modem.
-     * @param resp_buf Pointer to the buffer that will store the received data
-     * @param size_buf Size of the receive buffer
      * @return Returns -1 if invalid or no response from the modem, and 0 if success
      */
-    int get_active_network(char *resp_buf, int size_buf);
+    int get_active_network(void);
+
+    /**
+     * Function to manually switch to a specific available network and then 
+     * switches back to auto mode if the manual selection fails.
+     * This function sends the command (AT+COPS=4,1,"OperatorShortName").
+     * This can take upto 2 minutes to get a response. 
+     * So, need to be careful about a watchdog reset in the main program.
+     * Immediate response-check is also handled in the function.
+     * @return Returns -1 if invalid or no response from the modem
+     */
+    int select_network(const char *network);
+
+
+#endif /* MBED or ZEPHYR */
+
+    /**
+     * Requests TCP data by sending the command "AT+CIPRXGET=2,100" to the modem.
+     * @return Returns MODEM_RESPONSE_OK always.
+     */
+    int request_data(void);
+
+    /**
+     * Check the current bearer status sending the command "AT+SAPBR=2,1"
+     * to the GSM modem.
+     * @return Returns -1 if invalid or no response from the modem.
+     * 0 = Bearer is connecting, 1 = Bearer is connected, 2 = Bearer is closing
+     * 3 = Bearer is closed
+     */
+    int check_bearer_status(void);
+
+    /**
+     * Closes the GPRS PDP context.
+     * The function sends the AT command "AT+CIPSHUT" to the GSM modem.
+     * @return Returns -1 on receiving an invalid response.
+     * Returns 0 if SHUT OK received from the modem.
+     */
+    int close_pdp_context(void);
+
+    void sleep(void);
+    int delete_sms(int index);
+    int answer(void);
 
     /**
      * This function only sends the command (AT+COPS=?) for searching the available networks.
@@ -264,23 +307,44 @@ public:
     void search_networks(void);
 
     /**
-     * Function to manually switch to a specific available network and then 
-     * switches back to auto mode if the manual selection fails.
-     * This function sends the command (AT+COPS=4,1,"OperatorShortName").
-     * This can take upto 2 minutes to get a response. 
-     * So, need to be careful about a watchdog reset in the main program.
-     * Immediate response-check is also handled in the function.
-     * @param resp_buf Pointer to the buffer that will store the received data
-     * @param size_buf Size of the receive buffer
-     * @return Returns -1 if invalid or no response from the modem
+     * This function needs to be called after a command is sent to the GSM modem.
+     * The function prepares the variables before receiving data from the modem in the ISR.
+     * It resets the flags, starts the timer for checking timeouts, and sets the 
+     * acknowledgement string to the global variable. It also enables the Rx interrupt after
+     * a command is sent to the modem.
+     * @param timeout Maximum time (seconds) to wait for the modem response, after which 
+     * the Rx interrupt will be disabled.
+     * @param ack_message Pointer to a string containing the expected acknowledgement.
      */
-    int select_network(const char *network, char *resp_buf, int size_buf);
+    void prepare_for_rx(int timeout, const char *ack);
 
 private:
+#ifdef __MBED__
     void send_cmd(const char *cmd);
+#elif defined(__ZEPHYR__)
+    /**
+     * Function to send the AT commands to SIM800 module.
+     * UART transmission is still done using polling method.
+     * Reception happens in the background through an interrupt service routine.
+     * Use some delay after sending the command before processing the response,
+     * since SIM800 might take few seconds to respond.
+     * @param cmd Command string to send to the modem
+     * @param timeout Maximum time (seconds) to wait for the modem response, after which 
+     * the Rx interrupt will be disabled.
+     * @param ack Pointer to a string containing the expected acknowledgement. Pass NULL as the
+     * argument if there is a chance that the modem takes more time to respond and then handled the
+     * response checking externally. If NULL is passed as argument, the buffer need to be emptied
+     * for handling few special cases. For example, when the timeout didn't reach and there is no more
+     * data coming from the modem. Here, the null terminating part in the ISR won't reach, since
+     * this can only happen if there is a reception at the Rx pin. This is fixed by clearing the buffer.
+     * See the implementation of the ISR function "read_resp()" for more details.
+     */
+    void send_cmd(const char *cmd, int timeout, const char *ack);
+#endif
+
     void clear_buffer(void);
 };
 
-#endif
-
 #endif /* UNIT_TEST */
+
+#endif /* __GPRS_H__ */ 
