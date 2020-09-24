@@ -30,7 +30,6 @@ int GPRS::request_data(void)
 
 int GPRS::read_resp(char *resp_buf, int size_buf, int time_out, const char *ack_message)
 {
-
     Timer t;
     t.start();
 
@@ -126,7 +125,7 @@ int GPRS::set_pin(const char* pin, char *resp_buf, int size_buf)
     return MODEM_RESPONSE_OK;
 }
 
-int GPRS::enable_ssl(const char *filename, char *resp_buf, int size_buf)
+int GPRS::ssl_set_cert(const char *filename, char *resp_buf, int size_buf)
 {
     char cmd[64];
     snprintf(cmd, sizeof(cmd), "AT+SSLSETCERT=%s,ABC", filename);
@@ -135,6 +134,12 @@ int GPRS::enable_ssl(const char *filename, char *resp_buf, int size_buf)
         return MODEM_RESPONSE_ERROR;
     }
 
+    // If the response is as expected
+    return MODEM_RESPONSE_OK;
+}
+
+int GPRS::enable_ssl(char *resp_buf, int size_buf)
+{
     send_cmd("AT+CIPSSL=1");
     if (0 != read_resp(resp_buf, size_buf, DEFAULT_TIMEOUT, "OK")) {
         return MODEM_RESPONSE_ERROR;
