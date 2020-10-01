@@ -318,6 +318,40 @@ public:
      */
     void prepare_for_rx(int timeout, const char *ack);
 
+    /**
+     * Remove the existing file in the SIM800 flash.
+     * @param file_name The file name to be deleted.
+     */
+    int delete_file(const char *file_name);
+
+    /**
+     * Implements the FTP get functionality to download a file from an FTP server using
+     * the command AT+FTPGETTOFS. The final response from the SIM800 modem will be as below,
+     * +FTPGETTOFS: 0, <filesize>
+     * The downloaded file will be saved to the SIM800 system memory C:\User\FTP\
+     * The final response and the acknowledgement from the modem can take 30-90 seconds, and hence, the calling function 
+     * will have to wait for this.
+     * @param server FTP Server Name
+     * @param user FTP Server User Name
+     * @param pw FTP Server Password
+     * @param file_name The file name to be read
+     * @param file_path FTP Server File Path
+     */
+    int ftp_get(const char *server, const char *user, const char *pw, const char *file_name,
+                const char *file_path);
+
+    /**
+     * Read bytes from the downloaded binary image in the SIM800 flash.
+     * Implements the FTP file read from the SIM800 modem using the command, for example,
+     * AT+FSREAD=C:\\User\\FTP\\zephyr.bin,1,10240,<starting byte>.
+     * Each response from the modem starts with 2 bytes 0d 0a and ends with 7 bytes
+     * (0d 0a 4f 4b 0d 0a 00), which needs to be ignored while processing.
+     * @param file_name The file name to be read.
+     * @param length Number of bytes to be read.
+     * @param offset The starting index to read from.
+     */
+    int read_ftp_file(const char *file_name, int length, int offset);
+
 private:
 #ifdef __MBED__
     void send_cmd(const char *cmd);
