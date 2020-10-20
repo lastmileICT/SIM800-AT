@@ -27,7 +27,7 @@
 #include <time.h>
 
 #define UART_GSM DT_LABEL(DT_ALIAS(uart_uext))
-struct device *gsm_dev = device_get_binding(UART_GSM);
+const struct device *gsm_dev = device_get_binding(UART_GSM);
 
 int time_out = DEFAULT_TIMEOUT;
 char ack_message[32];
@@ -45,7 +45,7 @@ int GPRS::request_data(void)
     return MODEM_RESPONSE_OK;
 }
 
-void read_resp(void* user_data)
+void read_resp(const struct device *dev, void* user_data)
 {
     uint8_t c;
     bool exit_flag = false;
