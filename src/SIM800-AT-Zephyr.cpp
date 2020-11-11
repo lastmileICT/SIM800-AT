@@ -36,7 +36,8 @@ uint16_t actual_ack_num_bytes;
 volatile size_t current_index = 0;
 static volatile bool ack_received = false;
 
-char resp_buf[BUF_SIZE_DEFAULT]; // The size need to be tuned
+static char *resp_buf = NULL;
+static uint32_t sizeof_resp_buf;
 
 int GPRS::request_data(void)
 {
@@ -59,7 +60,8 @@ void read_resp(const struct device *dev, void* user_data)
             uart_fifo_read(gsm_dev, &c, 1);
             // Fill the buffer up to all but 1 character (the last character is reserved for '\0')
             // Characters beyond the size of the buffer are dropped.
-            if (current_index < (sizeof(resp_buf) - 1)) {
+
+            if (current_index < (sizeof_resp_buf - 1)) {
                 // There is always one last character left for the '\0'
                 resp_buf[current_index] = c;
 
@@ -99,9 +101,13 @@ exit:
     return;
 }
 
-void init_modem(void)
+void init_modem(char *buf, uint32_t size_buf)
 {
     uart_irq_callback_user_data_set(gsm_dev, read_resp, NULL);
+
+    // Passing the external buffer handle to SIM800 library
+    resp_buf = buf;
+    sizeof_resp_buf = size_buf;
 }
 
 void GPRS::send_cmd(const char *cmd, int timeout, const char *ack)
@@ -133,7 +139,7 @@ void GPRS::prepare_for_rx(int timeout, const char *ack)
     // as described in send_cmd().
     if (ack == NULL) {
         // We are reusing the buffer, so clear it before the reuse
-        memset(resp_buf, 0, sizeof(resp_buf));
+        memset(resp_buf, 0, sizeof_resp_buf);
     }
 
     ack_received = false;
@@ -162,6 +168,7 @@ int GPRS::init(void)
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
+
     // If the response is as expected
     return MODEM_RESPONSE_OK;
 }
