@@ -33,15 +33,15 @@
 #define MODEM_RESPONSE_OK 0
 #define MODEM_RESPONSE_ERROR -1
 
-#define BUF_SIZE_DEFAULT 200
-
 #ifdef __ZEPHYR__
 
-/** Initializes the UART interrupts
- * The ISR call-back function read_resp() is configured here.
- * No arguments are passed to the ISR as of now.
+/** Initializes the UART interrupts and the buffer.
+ * The ISR call-back function read_resp() is configured here and no arguments are passed to the ISR
+ * as of now. Also char buffer for collecting the UART data and it's size are set here.
+ *  @param buf Pointer to the buffer that will store the received UART data.
+ *  @param size_buf Size of the UART buffer
  */
-void init_modem(void);
+void init_modem(char *buf, uint32_t size_buf);
 
 #endif // #ifdef __ZEPHYR__
 
