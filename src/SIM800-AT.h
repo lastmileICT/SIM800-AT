@@ -319,6 +319,17 @@ public:
     void prepare_for_rx(int timeout, const char *ack);
 
     /**
+     * Implements FTP session initialisation to be used by FTPGETTOFS as well as FTPEXTGET.
+     * @param server FTP Server Name
+     * @param user FTP Server User Name
+     * @param pw FTP Server Password
+     * @param file_name The file name to be read
+     * @param file_path FTP Server File Path
+     */
+    int ftp_init(const char *server, const char *user, const char *pw, const char *file_name,
+                    const char *file_path);
+
+    /**
      * Remove the existing file in the SIM800 flash.
      * @param file_name The file name to be deleted.
      */
@@ -328,7 +339,7 @@ public:
      * Implements the FTP get functionality to download a file from an FTP server using
      * the command AT+FTPGETTOFS. The final response from the SIM800 modem will be as below,
      * +FTPGETTOFS: 0, <filesize>
-     * The downloaded file will be saved to the SIM800 system memory C:\User\FTP\
+     * The downloaded file will be saved to the SIM800 system (flash) memory C:\User\FTP\
      * The final response and the acknowledgement from the modem can take 30-90 seconds, and hence, the calling function 
      * will have to wait for this.
      * @param server FTP Server Name
@@ -341,7 +352,7 @@ public:
                 const char *file_path);
 
     /**
-     * Read bytes from the downloaded binary image in the SIM800 flash.
+     * Read bytes from the downloaded file in the SIM800 flash.
      * Implements the FTP file read from the SIM800 modem using the command, for example,
      * AT+FSREAD=C:\\User\\FTP\\zephyr.bin,1,10240,<starting byte>.
      * Each response from the modem starts with 2 bytes 0d 0a and ends with 7 bytes
@@ -351,6 +362,50 @@ public:
      * @param offset The starting index to read from.
      */
     int read_ftp_file(const char *file_name, int length, int offset);
+
+    /**
+     * Implements the "FTP extend get" functionality to download a file from an FTP server using
+     * the command AT+FTPEXTGET. The final response from the SIM800 modem will be as below,
+     * +FTPEXTGET: 1,0
+     * The downloaded file will be saved to the SIM800 RAM.
+     * The final response from the modem can take nearly 1 minute, and hence,
+     * the calling function will have to wait for this.
+     * @param server FTP Server Name
+     * @param user FTP Server User Name
+     * @param pw FTP Server Password
+     * @param file_name The file name to be read
+     * @param file_path FTP Server File Path
+     * @return Returns 0 on success, and -1 on receiving an invalid response or error.
+     */
+    int ftp_get_to_ram(const char *server, const char *user, const char *pw, const char *file_name,
+                    const char *file_path);
+
+    /**
+     * Read the size of the downloaded file in the SIM800 RAM after a FTPEXTGET request.
+     * A command "AT+FTPEXTGET?" to the modem will be responded with, for example
+     * "+FTPEXTGET: 1,108944" which contains the file size info.
+     * @return Returns the file size if success or -1 on receiving an invalid response.
+     */
+    int ftp_get_ram_filesize(void);
+
+    /**
+     * Read bytes from the downloaded file in the SIM800 RAM.
+     * Implements the FTPEXTGET file read from the SIM800 modem using the command,
+     * for example, AT+FTPEXTGET=3,0,128.
+     * The read bytes will be available in the buffer "resp_buf" after a successful read operation.
+     * A response for the request AT+FTPEXTGET=3,0,128 will always start with
+     * 2 bytes 0x0D 0x0A followed by "+FTPEXTGET: 3,128" and then 2 additional bytes 0x0D 0x0A.
+     * Then the actual bytes come and then ends with 6 bytes (0x0d 0x0a 0x4f 0x4b 0x0d 0x0a).
+     * These additional bytes needs to be ignored while processing.
+     * @param length Number of bytes to be read.
+     * @param offset The starting index to read from.
+     */
+    int ftp_read_from_ram(int length, int offset);
+
+    /**
+     * Ends the FTPEXTGET session by sending the command, "AT+FTPEXTGET=0"
+     */
+    int ftp_end_session(void);
 
 private:
 #ifdef __MBED__
