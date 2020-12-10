@@ -953,10 +953,12 @@ int GPRS::delete_file(const char *file_name)
     return MODEM_RESPONSE_OK;
 }
 
-int GPRS::ftp_get(const char *server, const char *user, const char *pw, const char *file_name,
+int GPRS::ftp_init(const char *server, const char *user, const char *pw, const char *file_name,
                     const char *file_path)
 {
     char cmd[64];
+
+    // Set parameters for FTP session
     send_cmd("AT+FTPCID=1", DEFAULT_TIMEOUT, "OK");
     k_sleep(K_SECONDS(1));
 
@@ -997,6 +999,19 @@ int GPRS::ftp_get(const char *server, const char *user, const char *pw, const ch
         return MODEM_RESPONSE_ERROR;
     }
 
+    // If the response is as expected
+    return MODEM_RESPONSE_OK;
+}
+
+int GPRS::ftp_get(const char *server, const char *user, const char *pw, const char *file_name,
+                    const char *file_path)
+{
+    char cmd[64];
+
+    if (ftp_init(server, user, pw, file_name, file_path) != MODEM_RESPONSE_OK) {
+        return MODEM_RESPONSE_ERROR;
+    }
+
     snprintf(cmd, sizeof(cmd), "AT+FTPGETTOFS=0,\"%s\"", file_name);
     send_cmd(cmd, 90, NULL); // More than 1 minute for response?
     k_sleep(K_SECONDS(1));
@@ -1010,6 +1025,60 @@ int GPRS::read_ftp_file(const char *file_name, int length, int offset)
     char cmd[64];
     snprintf(cmd, sizeof(cmd), "AT+FSREAD=C:\\User\\FTP\\%s,1,%d,%d", file_name, length, offset);
     send_cmd(cmd, 2, NULL);
+    k_sleep(K_SECONDS(1));
+
+    return MODEM_RESPONSE_OK;
+}
+
+int GPRS::ftp_get_to_ram(const char *server, const char *user, const char *pw, const char *file_name,
+                    const char *file_path)
+{
+    if (ftp_init(server, user, pw, file_name, file_path) != MODEM_RESPONSE_OK) {
+        return MODEM_RESPONSE_ERROR;
+    }
+
+    // Open the FTP session
+    send_cmd("AT+FTPEXTGET=1", 90, NULL); //Takes more than 1 minute to download
+    k_sleep(K_SECONDS(1));
+    if (NULL == strstr(resp_buf, "OK")) {
+        return MODEM_RESPONSE_ERROR;
+    }
+    // After this, the caller needs to wait until the response "+FTPEXTGET: 1,0" is received,
+    // which indicates that the downloading is successful.
+
+    // If the response is as expected
+    return MODEM_RESPONSE_OK;
+}
+
+int GPRS::ftp_get_ram_filesize(void)
+{
+    int file_size = 0;
+    send_cmd("AT+FTPEXTGET?", DEFAULT_TIMEOUT, NULL);
+    k_sleep(K_SECONDS(1));
+
+    // The response should ideally be like, +FTPEXTGET: 1,108944
+    char *ptr = strstr(resp_buf, "+FTPEXTGET: 1,");
+    if (ptr == NULL) {
+        return MODEM_RESPONSE_ERROR;
+    }
+    // Success
+    sscanf(ptr, "+FTPEXTGET: 1,%d,", &file_size);
+    return file_size;
+}
+
+int GPRS::ftp_read_from_ram(int length, int offset)
+{
+    char cmd[64];
+    snprintf(cmd, sizeof(cmd), "AT+FTPEXTGET=3,%d,%d", offset, length);
+    send_cmd(cmd, 2, NULL);
+    k_sleep(K_SECONDS(1));
+
+    return MODEM_RESPONSE_OK;
+}
+
+int GPRS::ftp_end_session(void)
+{
+    send_cmd("AT+FTPEXTGET=0", DEFAULT_TIMEOUT, "OK");
     k_sleep(K_SECONDS(1));
 
     return MODEM_RESPONSE_OK;
