@@ -41,7 +41,7 @@ static uint32_t sizeof_resp_buf;
 
 int GPRS::request_data(void)
 {
-    send_cmd("AT+CIPRXGET=2,100", DEFAULT_TIMEOUT, NULL);
+    send_cmd("AT+CIPRXGET=2,200", DEFAULT_TIMEOUT, NULL);
     k_sleep(K_SECONDS(DEFAULT_TIMEOUT));
     return MODEM_RESPONSE_OK;
 }
