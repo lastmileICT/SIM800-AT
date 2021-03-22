@@ -1,5 +1,5 @@
 /* SIM800_AT firmware
- * Copyright (c) 2016-2019 Connected Energy Technologies Ltd
+ * Copyright (c) 2016-2021 Connected Energy Technologies Ltd
  * (www.connectedenergy.net)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -62,13 +62,13 @@ public:
 
     Serial gprsSerial;
 
-    /** 
-     * Reads the server response through serial port. The function is used in 2 ways. 
+    /**
+     * Reads the server response through serial port. The function is used in 2 ways.
      * 1) To read-out the buffer, in which case, no return is actually expected.
      * 2) To read-out and also check the response against an expected message.
      * @param time_out Maximum time (seconds) spent for reading the serial port
      * @param ack_message Pointer to a string containing the expected message.
-     * This argument should be NULL, if no acknowledgment-check is needed. 
+     * This argument should be NULL, if no acknowledgment-check is needed.
      * @return While checking the response against an expected message,
      * Invalid response : -1
      * Valid response   : 0
@@ -393,6 +393,8 @@ public:
      * Implements the FTPEXTGET file read from the SIM800 modem using the command,
      * for example, AT+FTPEXTGET=3,0,128.
      * The read bytes will be available in the buffer "resp_buf" after a successful read operation.
+     * The wait time after sending the read command is configurable at compile-time
+     * (CONFIG_FTP_READ_WAIT).
      * A response for the request AT+FTPEXTGET=3,0,128 will always start with
      * 2 bytes 0x0D 0x0A followed by "+FTPEXTGET: 3,128" and then 2 additional bytes 0x0D 0x0A.
      * Then the actual bytes come and then ends with 6 bytes (0x0d 0x0a 0x4f 0x4b 0x0d 0x0a).
