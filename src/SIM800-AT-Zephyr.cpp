@@ -1,5 +1,5 @@
 /* SIM800_AT firmware
- * Copyright (c) 2016-2019 Connected Energy Technologies Ltd
+ * Copyright (c) 2016-2021 Connected Energy Technologies Ltd
  * (www.connectedenergy.net)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -1071,7 +1071,7 @@ int GPRS::ftp_read_from_ram(int length, int offset)
     char cmd[64];
     snprintf(cmd, sizeof(cmd), "AT+FTPEXTGET=3,%d,%d", offset, length);
     send_cmd(cmd, 2, NULL);
-    k_sleep(K_SECONDS(1));
+    k_sleep(K_MSEC(CONFIG_FTP_READ_WAIT));
 
     return MODEM_RESPONSE_OK;
 }
