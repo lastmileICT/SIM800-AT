@@ -41,7 +41,10 @@ static uint32_t sizeof_resp_buf;
 
 int GPRS::request_data(void)
 {
-    send_cmd("AT+CIPRXGET=2,200", DEFAULT_TIMEOUT, NULL);
+    // The length of output data can not exceed 1460 bytes at a time,
+    // based on SIM800 Series_AT Command Manual.
+    send_cmd("AT+CIPRXGET=2,1460", DEFAULT_TIMEOUT, NULL);
+
     k_sleep(K_SECONDS(DEFAULT_TIMEOUT));
     return MODEM_RESPONSE_OK;
 }
