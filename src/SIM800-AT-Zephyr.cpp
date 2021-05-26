@@ -155,6 +155,19 @@ void GPRS::prepare_for_rx(int timeout, const char *ack)
     uart_irq_rx_enable(gsm_dev);
 }
 
+// simple AT -> OK serial comm test
+int GPRS::test_uart()
+{
+    for (int i = 0; i < 2; i++) {
+        send_cmd("AT", 1, "OK");
+        k_sleep(K_MSEC(200));
+        if (ack_received) {
+            return MODEM_RESPONSE_OK;
+        }
+    }
+    return MODEM_RESPONSE_ERROR;
+}
+
 int GPRS::init(void)
 {
     for (int i = 0; i < 3; i++) {

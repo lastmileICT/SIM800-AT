@@ -86,7 +86,7 @@ public:
     int enable_ssl(char *resp_buf, int size_buf);
     int enable_get_data_manually(char *resp_buf, int size_buf);
     int setup_clock(char *resp_buf, int size_buf);
-    int setup_bearer(const char* apn, const char* user, const char* pass, 
+    int setup_bearer(const char* apn, const char* user, const char* pass,
                     char *resp_buf, int size_buf);
     int enable_bearer(char *resp_buf, int size_buf);
     int network_registration_gsm(char *resp_buf, int size_buf);
@@ -94,7 +94,7 @@ public:
     int check_signal_strength(char *resp_buf, int size_buf);
     uint32_t get_time(char *resp_buf, int size_buf);
     int attach_gprs(char *resp_buf, int size_buf);
-    int set_apn(const char* apn, const char* user, const char* pass, 
+    int set_apn(const char* apn, const char* user, const char* pass,
                 char *resp_buf, int size_buf);
     int activate_gprs(char *resp_buf, int size_buf);
     int get_ip(char *resp_buf, int size_buf);
@@ -126,6 +126,7 @@ public:
     GPRS() {};
 
     int init(void);
+    int test_uart(); // simple AT -> OK serial comm test
     int wakeup(void);
     int check_pin(void);
     int set_pin(const char* pin);
@@ -136,8 +137,8 @@ public:
     int enable_get_data_manually(void);
     int setup_clock(void);
     /**
-     * Bearer Settings for Applications Based on IP. This configures the Access Point Name (APN) 
-     * parameters for internet access. The function sends the AT command "AT+SAPBR=3,......" 
+     * Bearer Settings for Applications Based on IP. This configures the Access Point Name (APN)
+     * parameters for internet access. The function sends the AT command "AT+SAPBR=3,......"
      * to the GSM modem.
      * @param apn APN for the internet gateway
      * @param user User ID for APN
@@ -147,7 +148,7 @@ public:
 
     int setup_bearer(const char* apn, const char* user, const char* pass);
     /**
-     * Enables/opens the bearer, provided the settings have been done. 
+     * Enables/opens the bearer, provided the settings have been done.
      * The function sends the AT command "AT+SAPBR=1,.." to the GSM modem.
      * @return Returns -1 if invalid or no response from the modem
      */
@@ -190,7 +191,7 @@ public:
     /**
      * Bring Up Wireless Connection with GPRS.
      * The function sends the AT commands "AT+CIICR" to the GSM modem.
-     * If this was setup already, the modem will respond with "ERROR", and this 
+     * If this was setup already, the modem will respond with "ERROR", and this
      * is actually not an error.
      * @return Returns 0 if the modem responds with "OK" or "ERROR".
      * Returns -1 if no response or invalid.
@@ -200,7 +201,7 @@ public:
     /**
      * Get Local IP address, if the PDP context has been activated before.
      * The function sends the AT commands "AT+CIFSR" to the GSM modem.
-     * @return Returns 0 if the modem response is a valid IP address. Returns -1 if the GSM modem 
+     * @return Returns 0 if the modem response is a valid IP address. Returns -1 if the GSM modem
      * responds with an "ERROR". This can happen if the PDP context has not been activated already.
      */
     int get_ip(void);
@@ -258,10 +259,10 @@ public:
     int get_active_network(void);
 
     /**
-     * Function to manually switch to a specific available network and then 
+     * Function to manually switch to a specific available network and then
      * switches back to auto mode if the manual selection fails.
      * This function sends the command (AT+COPS=4,1,"OperatorShortName").
-     * This can take upto 2 minutes to get a response. 
+     * This can take upto 2 minutes to get a response.
      * So, need to be careful about a watchdog reset in the main program.
      * Immediate response-check is also handled in the function.
      * @return Returns -1 if invalid or no response from the modem
@@ -309,10 +310,10 @@ public:
     /**
      * This function needs to be called after a command is sent to the GSM modem.
      * The function prepares the variables before receiving data from the modem in the ISR.
-     * It resets the flags, starts the timer for checking timeouts, and sets the 
+     * It resets the flags, starts the timer for checking timeouts, and sets the
      * acknowledgement string to the global variable. It also enables the Rx interrupt after
      * a command is sent to the modem.
-     * @param timeout Maximum time (seconds) to wait for the modem response, after which 
+     * @param timeout Maximum time (seconds) to wait for the modem response, after which
      * the Rx interrupt will be disabled.
      * @param ack_message Pointer to a string containing the expected acknowledgement.
      */
@@ -340,7 +341,7 @@ public:
      * the command AT+FTPGETTOFS. The final response from the SIM800 modem will be as below,
      * +FTPGETTOFS: 0, <filesize>
      * The downloaded file will be saved to the SIM800 system (flash) memory C:\User\FTP\
-     * The final response and the acknowledgement from the modem can take 30-90 seconds, and hence, the calling function 
+     * The final response and the acknowledgement from the modem can take 30-90 seconds, and hence, the calling function
      * will have to wait for this.
      * @param server FTP Server Name
      * @param user FTP Server User Name
@@ -420,7 +421,7 @@ private:
      * Use some delay after sending the command before processing the response,
      * since SIM800 might take few seconds to respond.
      * @param cmd Command string to send to the modem
-     * @param timeout Maximum time (seconds) to wait for the modem response, after which 
+     * @param timeout Maximum time (seconds) to wait for the modem response, after which
      * the Rx interrupt will be disabled.
      * @param ack Pointer to a string containing the expected acknowledgement. Pass NULL as the
      * argument if there is a chance that the modem takes more time to respond and then handled the
@@ -438,4 +439,4 @@ private:
 
 #endif /* UNIT_TEST */
 
-#endif /* __GPRS_H__ */ 
+#endif /* __GPRS_H__ */
