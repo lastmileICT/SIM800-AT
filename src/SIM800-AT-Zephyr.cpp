@@ -672,9 +672,17 @@ int GPRS::send_tcp_data(unsigned char *data, int len, uint8_t timeout)
 
     prepare_for_rx(timeout, NULL);
     k_sleep(K_SECONDS(timeout));
-    // The response could take longer than 7 seconds, it depends on the connection to the server
-    if (NULL == strstr(resp_buf, "OK")) {
-        return MODEM_RESPONSE_ERROR;
+
+
+    // The response could take a long time, which depends on the connection to the server
+    if (NULL == strstr(resp_buf, "SEND OK")) {
+        if (NULL == strstr(resp_buf, "+CME ERROR")) {
+            return MODEM_RESPONSE_ERROR;
+        }
+        else {
+            // An error related to mobile equipment or network
+            return MODEM_CME_ERROR;
+        }
     }
     // If the response is as expected
     return MODEM_RESPONSE_OK;
