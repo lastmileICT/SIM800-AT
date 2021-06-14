@@ -32,6 +32,7 @@
 #define DEFAULT_TIMEOUT 3
 #define MODEM_RESPONSE_OK 0
 #define MODEM_RESPONSE_ERROR -1
+#define MODEM_CME_ERROR -2
 
 #ifdef __ZEPHYR__
 
