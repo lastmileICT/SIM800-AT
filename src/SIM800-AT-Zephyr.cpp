@@ -652,8 +652,13 @@ int GPRS::disable_bearer(void)
 void GPRS::sleep(void)
 {
     send_cmd("AT+CSCLK=2", DEFAULT_TIMEOUT, "OK");
-    // k_sleep(K_SECONDS(1));
 }
+
+void GPRS::powerdown(void)
+{
+    send_cmd("AT+CPOWD=0", DEFAULT_TIMEOUT, NULL);
+}
+
 
 int GPRS::send_tcp_data(unsigned char *data, int len, uint8_t timeout)
 {

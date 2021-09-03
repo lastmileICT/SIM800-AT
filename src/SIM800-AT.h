@@ -297,6 +297,7 @@ public:
     int close_pdp_context(void);
 
     void sleep(void);
+    void powerdown(void);
     int delete_sms(int index);
     int answer(void);
 
