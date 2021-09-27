@@ -19,6 +19,9 @@
 
 #include "SIM800-AT.h"
 #include <inttypes.h>
+#ifdef CONFIG_SOC_SERIES_STM32L0X
+#include "stm32l072xx.h"
+#endif
 
 #ifdef __ZEPHYR__
 #include <zephyr.h>
@@ -26,11 +29,17 @@
 #include <string.h>
 #include <time.h>
 
-#define UART_GSM DT_LABEL(DT_ALIAS(uart_uext))
+#define XSTR(x) STR(x)
+#define STR(x) #x
+
+#define UART_GSM DT_LABEL(DT_ALIAS(uart_gsm))
+#define UART_GSM_BASE_ADDR DT_REG_ADDR(DT_ALIAS(uart_gsm))
 const struct device *gsm_dev = device_get_binding(UART_GSM);
+static USART_TypeDef *UARTGSM = (USART_TypeDef *)(UART_GSM_BASE_ADDR);
 
 int time_out = DEFAULT_TIMEOUT;
 char ack_message[32];
+size_t len_ack;
 uint32_t time_initial;
 uint16_t actual_ack_num_bytes;
 volatile size_t current_index = 0;
@@ -49,64 +58,52 @@ int GPRS::request_data(void)
     return MODEM_RESPONSE_OK;
 }
 
-void read_resp(const struct device *dev, void* user_data)
+void irq_handler(const struct device *dev, void* user_data)
 {
-    uint8_t c;
-    bool exit_flag = false;
+    char c;
+    bool done = false;
+    UARTGSM->CR1 &= ~(USART_CR1_RXNEIE); // disable receive interrupts
 
-    if (!uart_irq_update(gsm_dev)) {
+    // Timer expired or buffer length reached ? There is always one
+    // byte reserved for '\0'.
+    if ((current_index == sizeof_resp_buf - 1) \
+        || ((k_uptime_get() / 1000) - time_initial) > time_out) {
+        // RX interrupts will stay disabled !
+        resp_buf[current_index] = '\0';
         return;
     }
 
-    if (((k_uptime_get() / 1000) - time_initial) <= time_out) { // timer not expired yet
-        while (uart_irq_rx_ready(gsm_dev)) {
-            uart_fifo_read(gsm_dev, &c, 1);
-            // Fill the buffer up to all but 1 character (the last character is reserved for '\0')
-            // Characters beyond the size of the buffer are dropped.
+    c = resp_buf[current_index] = (char)UARTGSM->RDR;
+    //USART1->TDR = c; // Debug aid: print incoming data to the console
+    current_index++;
 
-            if (current_index < (sizeof_resp_buf - 1)) {
-                // There is always one last character left for the '\0'
-                resp_buf[current_index] = c;
+    if (len_ack != 0) { // ACK check required ?
+        if (c == ack_message[actual_ack_num_bytes]) {
+            actual_ack_num_bytes++;
+        } else {
+            actual_ack_num_bytes = 0;
+        }
 
-                if (strlen(ack_message) != 0) { //Decide if an acknowledgement check required
-                    // Checks if the acknowledgement string is received correctly
-                    if (resp_buf[current_index] == ack_message[actual_ack_num_bytes]) {
-                        actual_ack_num_bytes++;
-                    }
-                    else {
-                        actual_ack_num_bytes = 0; // Reset the counter
-                    }
+        if (actual_ack_num_bytes == len_ack) {
+            // Acknowledgement string received
+            ack_received = true;
+            resp_buf[current_index] = '\0';
+            done = true;
+        }
+    }
 
-                    if (actual_ack_num_bytes == strlen(ack_message)) { // Exit condition
-                        // Acknowledgement string received
-                        current_index++;
-                        ack_received = true;
-                        exit_flag = true;
-                        goto exit;
-                    }
-                }
-                current_index++;
-            }
-            else { // Buffer exceeded
-                exit_flag = true;
-                goto exit;
-            }
-        } // While data receive
+    UARTGSM->RQR |= USART_RQR_RXFRQ; // clear RXNE again
+    // clear overrun, framing, parity, noise errors
+    UARTGSM->ICR |= (USART_ICR_ORECF | USART_ICR_PECF
+                    | USART_ICR_FECF | USART_ICR_NCF);
+    if (!done) {
+        UARTGSM->CR1 |= USART_CR1_RXNEIE; // enable receive interrupts
     }
-    else { // If timed out
-        exit_flag = true;
-    }
-exit:
-    if (exit_flag) {
-        uart_irq_rx_disable(gsm_dev);
-        resp_buf[current_index] = '\0';
-    }
-    return;
 }
 
 void init_modem(char *buf, uint32_t size_buf)
 {
-    uart_irq_callback_user_data_set(gsm_dev, read_resp, NULL);
+    uart_irq_callback_user_data_set(gsm_dev, irq_handler, NULL);
 
     // Passing the external buffer handle to SIM800 library
     resp_buf = buf;
@@ -120,7 +117,6 @@ void GPRS::send_cmd(const char *cmd, int timeout, const char *ack)
     }
     uart_poll_out(gsm_dev, '\r');
     uart_poll_out(gsm_dev, '\n');
-
     // Prepare for processing in the receive interrupt
     prepare_for_rx(timeout, ack);
 }
@@ -131,11 +127,12 @@ void GPRS::prepare_for_rx(int timeout, const char *ack)
 {
     ack_message[0] = '\0';
     // Make the ack_message configurable
-    if (strlen(ack) <= sizeof(ack_message) - 1) { // Check if valid string length
-        if (ack != NULL) {
-            strncpy(ack_message, ack, sizeof(ack_message));
-        }
-        // Else, the ack_message will be empty already
+    len_ack = 0;
+    if (ack != NULL) {
+        len_ack = strlen(ack);
+    }
+    if (len_ack && len_ack < sizeof(ack_message) - 1) {
+        strncpy(ack_message, ack, len_ack + 1);
     }
 
     // To handle a special case of early exit from the ISR while using the NULL argument,
