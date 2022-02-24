@@ -167,17 +167,23 @@ int GPRS::test_uart()
 
 int GPRS::init(void)
 {
-    for (int i = 0; i < 3; i++) {
-        send_cmd("AT", DEFAULT_TIMEOUT, "OK");
-        k_sleep(K_SECONDS(1));
-        if (ack_received == false) {
-            return MODEM_RESPONSE_ERROR;
-        }
+    send_cmd("AT", DEFAULT_TIMEOUT, "OK");
+    k_sleep(K_MSEC(400));
+    send_cmd("AT", DEFAULT_TIMEOUT, "OK");
+    k_sleep(K_MSEC(400));
+    if (!ack_received) {
+        return MODEM_RESPONSE_ERROR;
     }
-
     // Disable modem echo.
     send_cmd("ATE0", DEFAULT_TIMEOUT, "OK");
-    k_sleep(K_SECONDS(1));
+    k_sleep(K_MSEC(200));
+    if (ack_received == false) {
+        return MODEM_RESPONSE_ERROR;
+    }
+
+    // Disable clock down scaling
+    send_cmd("AT+CSCLK=0", DEFAULT_TIMEOUT, "OK");
+    k_sleep(K_MSEC(700));
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
@@ -189,12 +195,7 @@ int GPRS::init(void)
 int GPRS::wakeup(void)
 {
     send_cmd("AT", 1, NULL);
-    k_sleep(K_SECONDS(1));
-    send_cmd("AT+CSCLK=0", DEFAULT_TIMEOUT, "OK");
-    k_sleep(K_SECONDS(1));
-    if (ack_received == false) {
-        return MODEM_RESPONSE_ERROR;
-    }
+    k_sleep(K_MSEC(200));
 
     // If the response is as expected
     return MODEM_RESPONSE_OK;
@@ -203,7 +204,7 @@ int GPRS::wakeup(void)
 int GPRS::check_pin(void)
 {
     send_cmd("AT+CPIN?", DEFAULT_TIMEOUT, "READY");
-    k_sleep(K_SECONDS(1));
+    k_sleep(K_MSEC(500));
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
@@ -298,7 +299,7 @@ int GPRS::enable_ssl(void)
 int GPRS::setup_clock(void)
 {
     send_cmd("AT+CNTPCID=1", DEFAULT_TIMEOUT, "OK");
-    k_sleep(K_SECONDS(1));
+    k_sleep(K_MSEC(200));
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
@@ -324,7 +325,7 @@ int GPRS::setup_bearer(const char* apn, const char* user, const char* pass)
     // Set the type of Internet connection as GPRS
     char cmd[64];
     send_cmd("AT+SAPBR=3,1,Contype,GPRS", DEFAULT_TIMEOUT, "OK");
-    k_sleep(K_SECONDS(1));
+    k_sleep(K_MSEC(500));
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
@@ -332,7 +333,7 @@ int GPRS::setup_bearer(const char* apn, const char* user, const char* pass)
     // Set the access point name string
     snprintf(cmd, sizeof(cmd), "AT+SAPBR=3,1,APN,\"%s\"", apn);
     send_cmd(cmd, DEFAULT_TIMEOUT, "OK");
-    k_sleep(K_SECONDS(1));
+    k_sleep(K_MSEC(500));
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
@@ -340,7 +341,7 @@ int GPRS::setup_bearer(const char* apn, const char* user, const char* pass)
     // Set the user name for APN
     snprintf(cmd, sizeof(cmd), "AT+SAPBR=3,1,USER,\"%s\"", user);
     send_cmd(cmd, DEFAULT_TIMEOUT, "OK");
-    k_sleep(K_SECONDS(1));
+    k_sleep(K_MSEC(500));
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
@@ -348,7 +349,7 @@ int GPRS::setup_bearer(const char* apn, const char* user, const char* pass)
     // Set the password for APN
     snprintf(cmd, sizeof(cmd), "AT+SAPBR=3,1,PWD,\"%s\"", pass);
     send_cmd(cmd, DEFAULT_TIMEOUT, "OK");
-    k_sleep(K_SECONDS(1));
+    k_sleep(K_MSEC(500));
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
@@ -408,7 +409,7 @@ int GPRS::check_bearer_status(void)
 int GPRS::get_active_network(void)
 {
     send_cmd("AT+COPS?", DEFAULT_TIMEOUT, NULL);
-    k_sleep(K_SECONDS(1));
+    k_sleep(K_MSEC(500));
     if ((NULL != strstr(resp_buf, "OK"))) {
         return MODEM_RESPONSE_OK;
     }
@@ -463,7 +464,7 @@ int GPRS::check_signal_strength(void)
 {
     int value = 0;
     send_cmd("AT+CSQ", DEFAULT_TIMEOUT, NULL);
-    k_sleep(K_SECONDS(DEFAULT_TIMEOUT));
+    k_sleep(K_MSEC(600));
     if (0 != strlen(resp_buf)) {
         // Extract the integer value from the received string.
         sscanf(resp_buf, " +CSQ: %d,", &value);
@@ -522,14 +523,14 @@ int GPRS::enable_get_data_manually(void)
 {
     // Startup single IP connection
     send_cmd("AT+CIPMUX=0", DEFAULT_TIMEOUT, "OK");
-    k_sleep(K_SECONDS(1));
+    k_sleep(K_MSEC(300));
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
 
     //Enable getting data from network manually.
     send_cmd("AT+CIPRXGET=1", DEFAULT_TIMEOUT, "OK");
-    k_sleep(K_SECONDS(1));
+    k_sleep(K_MSEC(300));
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
@@ -543,7 +544,7 @@ int GPRS::set_apn(const char* apn, const char* user, const char* pass)
     char cmd[64];
     snprintf(cmd, sizeof(cmd), "AT+CSTT=\"%s\",\"%s\",\"%s\"", apn, user, pass);
     send_cmd(cmd, DEFAULT_TIMEOUT, "OK");
-    k_sleep(K_SECONDS(1));
+    k_sleep(K_MSEC(200));
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
@@ -553,7 +554,7 @@ int GPRS::set_apn(const char* apn, const char* user, const char* pass)
 int GPRS::activate_gprs(void)
 {
     send_cmd("AT+CIICR", DEFAULT_TIMEOUT, NULL); // Upto 85 seconds
-    k_sleep(K_SECONDS(DEFAULT_TIMEOUT));
+    k_sleep(K_MSEC(1000));
     if ((NULL != strstr(resp_buf, "OK")) ||
         (NULL != strstr(resp_buf, "ERROR"))) {
         // If the responses are as expected - OK or ERROR received
@@ -579,7 +580,7 @@ int GPRS::connect_tcp(const char *domain, const char *port)
     char cmd[100];
     sprintf(cmd, "AT+CIPSTART=TCP,%s,%s", domain, port);
     send_cmd(cmd, 6, NULL);
-    k_sleep(K_SECONDS(DEFAULT_TIMEOUT));
+    k_sleep(K_SECONDS(3));
     if ((NULL != strstr(resp_buf, "CONNECT OK")) ||
         (NULL != strstr(resp_buf, "ALREADY CONNECT"))) {
         return MODEM_RESPONSE_OK;
@@ -592,7 +593,7 @@ int GPRS::close_pdp_context(void)
 {
     // Close the GPRS PDP context.
     send_cmd("AT+CIPSHUT", 6, NULL);
-    k_sleep(K_SECONDS(DEFAULT_TIMEOUT));
+    k_sleep(K_MSEC(600));
     if (NULL != strstr(resp_buf, "SHUT OK")) {
         return MODEM_RESPONSE_OK;
     }
@@ -603,7 +604,7 @@ int GPRS::close_tcp(void)
 {
     // closes the TCP connection
     send_cmd("AT+CIPCLOSE=0", 6, NULL);
-    k_sleep(K_SECONDS(DEFAULT_TIMEOUT));
+    k_sleep(K_MSEC(800));
     if ((NULL != strstr(resp_buf, "CLOSE OK")) ||
         (NULL != strstr(resp_buf, "ERROR"))) { // If TCP not opened previously
         return MODEM_RESPONSE_OK;
@@ -616,7 +617,7 @@ int GPRS::close_tcp_quick(void)
 {
     // closes the TCP connection quickly
     send_cmd("AT+CIPCLOSE=1", DEFAULT_TIMEOUT, NULL);
-    k_sleep(K_SECONDS(DEFAULT_TIMEOUT));
+    k_sleep(K_MSEC(400));
     if ((NULL != strstr(resp_buf, "CLOSE OK")) ||
         (NULL != strstr(resp_buf, "ERROR"))) { // If TCP not opened previously
         return MODEM_RESPONSE_OK;
@@ -638,7 +639,7 @@ int GPRS::detach_gprs(void)
 int GPRS::disable_bearer(void)
 {
     send_cmd("AT+SAPBR=0,1", 6, "OK"); // Up to 65 seconds
-    k_sleep(K_SECONDS(1));
+    k_sleep(K_MSEC(600));
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
@@ -971,7 +972,7 @@ int GPRS::delete_file(const char *file_name)
     snprintf(cmd, sizeof(cmd), "AT+FSDEL=C:\\User\\FTP\\%s", file_name);
 
     send_cmd(cmd, DEFAULT_TIMEOUT, "OK");
-    k_sleep(K_SECONDS(1));
+    k_sleep(K_MSEC(400));
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
@@ -986,12 +987,12 @@ int GPRS::ftp_init(const char *server, const char *user, const char *pw, const c
 
     // Set parameters for FTP session
     send_cmd("AT+FTPCID=1", DEFAULT_TIMEOUT, "OK");
-    k_sleep(K_SECONDS(1));
+    k_sleep(K_MSEC(100));
 
     // Server name
     snprintf(cmd, sizeof(cmd), "AT+FTPSERV=\"%s\"", server);
     send_cmd(cmd, DEFAULT_TIMEOUT, "OK");
-    k_sleep(K_SECONDS(1));
+    k_sleep(K_MSEC(100));
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
@@ -999,28 +1000,28 @@ int GPRS::ftp_init(const char *server, const char *user, const char *pw, const c
     // User name
     snprintf(cmd, sizeof(cmd), "AT+FTPUN=\"%s\"", user);
     send_cmd(cmd, DEFAULT_TIMEOUT, "OK");
-    k_sleep(K_SECONDS(1));
+    k_sleep(K_MSEC(100));
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
 
     snprintf(cmd, sizeof(cmd), "AT+FTPPW=\"%s\"", pw);
     send_cmd(cmd, DEFAULT_TIMEOUT, "OK");
-    k_sleep(K_SECONDS(1));
+    k_sleep(K_MSEC(100));
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
 
     snprintf(cmd, sizeof(cmd), "AT+FTPGETNAME=\"%s\"", file_name);
     send_cmd(cmd, DEFAULT_TIMEOUT, "OK");
-    k_sleep(K_SECONDS(1));
+    k_sleep(K_MSEC(100));
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
 
     snprintf(cmd, sizeof(cmd), "AT+FTPGETPATH=\"%s\"", file_path);
     send_cmd(cmd, DEFAULT_TIMEOUT, "OK");
-    k_sleep(K_SECONDS(1));
+    k_sleep(K_MSEC(100));
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
@@ -1040,7 +1041,7 @@ int GPRS::ftp_get(const char *server, const char *user, const char *pw, const ch
 
     snprintf(cmd, sizeof(cmd), "AT+FTPGETTOFS=0,\"%s\"", file_name);
     send_cmd(cmd, 90, NULL); // More than 1 minute for response?
-    k_sleep(K_SECONDS(1));
+    k_sleep(K_MSEC(400));
 
     // If the response is as expected
     return MODEM_RESPONSE_OK;
@@ -1065,7 +1066,7 @@ int GPRS::ftp_get_to_ram(const char *server, const char *user, const char *pw, c
 
     // Open the FTP session
     send_cmd("AT+FTPEXTGET=1", 90, NULL); //Takes more than 1 minute to download
-    k_sleep(K_SECONDS(1));
+    k_sleep(K_MSEC(500));
     if (NULL == strstr(resp_buf, "OK")) {
         return MODEM_RESPONSE_ERROR;
     }
@@ -1080,7 +1081,7 @@ int GPRS::ftp_get_ram_filesize(void)
 {
     int file_size = 0;
     send_cmd("AT+FTPEXTGET?", DEFAULT_TIMEOUT, NULL);
-    k_sleep(K_SECONDS(1));
+    k_sleep(K_MSEC(400));
 
     // The response should ideally be like, +FTPEXTGET: 1,108944
     char *ptr = strstr(resp_buf, "+FTPEXTGET: 1,");
@@ -1105,7 +1106,7 @@ int GPRS::ftp_read_from_ram(int length, int offset)
 int GPRS::ftp_end_session(void)
 {
     send_cmd("AT+FTPEXTGET=0", DEFAULT_TIMEOUT, "OK");
-    k_sleep(K_SECONDS(1));
+    k_sleep(K_MSEC(400));
 
     return MODEM_RESPONSE_OK;
 }

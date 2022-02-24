@@ -29,7 +29,7 @@
 #include <zephyr.h>
 #endif
 
-#define DEFAULT_TIMEOUT 3
+#define DEFAULT_TIMEOUT 2
 #define MODEM_RESPONSE_OK 0
 #define MODEM_RESPONSE_ERROR -1
 #define MODEM_CME_ERROR -2
