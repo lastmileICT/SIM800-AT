@@ -48,14 +48,15 @@ static volatile bool ack_received = false;
 static char *resp_buf = NULL;
 static uint32_t sizeof_resp_buf;
 
-int GPRS::request_data(void)
+int GPRS::ip_rx_data(void)
 {
     // The length of output data can not exceed 1460 bytes at a time,
     // based on SIM800 Series_AT Command Manual.
     send_cmd("AT+CIPRXGET=2,1460", DEFAULT_TIMEOUT, NULL);
-
     k_sleep(K_SECONDS(DEFAULT_TIMEOUT));
-    return MODEM_RESPONSE_OK;
+    uint16_t tcp_packet_len;
+    sscanf((char *)resp_buf, " +CIPRXGET: 2,%hu,0", &tcp_packet_len);
+    return tcp_packet_len;
 }
 
 void irq_handler(const struct device *dev, void* user_data)

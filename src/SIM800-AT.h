@@ -274,10 +274,10 @@ public:
 #endif /* MBED or ZEPHYR */
 
     /**
-     * Requests TCP data by sending the command "AT+CIPRXGET=2,100" to the modem.
-     * @return Returns MODEM_RESPONSE_OK always.
+     * Requests IP data by sending the command "AT+CIPRXGET=2,x" to the modem.
+     * @return Returns the size of TCP/UDP data.
      */
-    int request_data(void);
+    int ip_rx_data(void);
 
     /**
      * Check the current bearer status sending the command "AT+SAPBR=2,1"
