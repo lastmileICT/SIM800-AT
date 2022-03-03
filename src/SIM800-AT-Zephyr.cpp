@@ -584,6 +584,9 @@ int GPRS::connect_tcp(const char *domain, const char *port)
     k_sleep(K_SECONDS(3));
     if ((NULL != strstr(resp_buf, "CONNECT OK")) ||
         (NULL != strstr(resp_buf, "ALREADY CONNECT"))) {
+        snprintf(cmd, sizeof(cmd), "AT+CIPQSEND=1");
+        send_cmd(cmd, DEFAULT_TIMEOUT, "OK");
+        k_sleep(K_MSEC(500));
         return MODEM_RESPONSE_OK;
     }
 
@@ -659,33 +662,31 @@ void GPRS::powerdown(void)
 }
 
 
-int GPRS::send_tcp_data(unsigned char *data, int len, uint8_t timeout)
+int GPRS::send_tcp_data(void *data, int len, uint8_t timeout)
 {
     char cmd[64];
     snprintf(cmd, sizeof(cmd), "AT+CIPSEND=%d", len);
     send_cmd(cmd, DEFAULT_TIMEOUT, ">");
-    k_sleep(K_SECONDS(1));
+    k_sleep(K_MSEC(300));
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
 
     // Send data
     for (int i = 0; i < len; i++) {
-        uart_poll_out(gsm_dev, data[i]);
+        uart_poll_out(gsm_dev, ((char *)data)[i]);
     }
 
     prepare_for_rx(timeout, NULL);
     k_sleep(K_SECONDS(timeout));
 
-
-    // The response could take a long time, which depends on the connection to the server
-    if (NULL == strstr(resp_buf, "SEND OK")) {
-        if (NULL == strstr(resp_buf, "+CME ERROR")) {
-            return MODEM_RESPONSE_ERROR;
-        }
-        else {
+    if (strstr(resp_buf, "SEND OK") == NULL && strstr(resp_buf, "DATA ACCEPT") == NULL) {
+        if (strstr(resp_buf, "+CME ERROR") != NULL) {
             // An error related to mobile equipment or network
             return MODEM_CME_ERROR;
+        }
+        else {
+            return MODEM_RESPONSE_ERROR;
         }
     }
     // If the response is as expected

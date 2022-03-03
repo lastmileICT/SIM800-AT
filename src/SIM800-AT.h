@@ -236,7 +236,7 @@ public:
 
     int detach_gprs(void);
     int disable_bearer(void);
-    int send_tcp_data(unsigned char *data, int len, uint8_t timeout);
+    int send_tcp_data(void *data, int len, uint8_t timeout);
     int reset(void);
     int init_sms(void);
     int check_new_sms(void);
