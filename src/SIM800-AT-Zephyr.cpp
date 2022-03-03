@@ -465,7 +465,7 @@ int GPRS::check_signal_strength(void)
 {
     int value = 0;
     send_cmd("AT+CSQ", DEFAULT_TIMEOUT, NULL);
-    k_sleep(K_MSEC(600));
+    k_sleep(K_MSEC(500));
     if (0 != strlen(resp_buf)) {
         // Extract the integer value from the received string.
         sscanf(resp_buf, " +CSQ: %d,", &value);
