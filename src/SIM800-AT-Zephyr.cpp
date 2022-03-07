@@ -326,7 +326,7 @@ int GPRS::setup_bearer(const char* apn, const char* user, const char* pass)
     // Set the type of Internet connection as GPRS
     char cmd[64];
     send_cmd("AT+SAPBR=3,1,Contype,GPRS", DEFAULT_TIMEOUT, "OK");
-    k_sleep(K_MSEC(500));
+    k_sleep(K_MSEC(100));
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
@@ -334,7 +334,7 @@ int GPRS::setup_bearer(const char* apn, const char* user, const char* pass)
     // Set the access point name string
     snprintf(cmd, sizeof(cmd), "AT+SAPBR=3,1,APN,\"%s\"", apn);
     send_cmd(cmd, DEFAULT_TIMEOUT, "OK");
-    k_sleep(K_MSEC(500));
+    k_sleep(K_MSEC(100));
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
@@ -342,7 +342,7 @@ int GPRS::setup_bearer(const char* apn, const char* user, const char* pass)
     // Set the user name for APN
     snprintf(cmd, sizeof(cmd), "AT+SAPBR=3,1,USER,\"%s\"", user);
     send_cmd(cmd, DEFAULT_TIMEOUT, "OK");
-    k_sleep(K_MSEC(500));
+    k_sleep(K_MSEC(100));
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
@@ -350,7 +350,7 @@ int GPRS::setup_bearer(const char* apn, const char* user, const char* pass)
     // Set the password for APN
     snprintf(cmd, sizeof(cmd), "AT+SAPBR=3,1,PWD,\"%s\"", pass);
     send_cmd(cmd, DEFAULT_TIMEOUT, "OK");
-    k_sleep(K_MSEC(500));
+    k_sleep(K_MSEC(100));
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
@@ -440,7 +440,7 @@ int GPRS::select_network(const char *network)
 int GPRS::network_registration_gsm(void)
 {
     send_cmd("AT+CREG?", DEFAULT_TIMEOUT, NULL);
-    k_sleep(K_SECONDS(DEFAULT_TIMEOUT));
+    k_sleep(K_MSEC(100));
     if ((NULL != strstr(resp_buf, "+CREG: 0,1")) ||
         (NULL != strstr(resp_buf, "+CREG: 0,5"))) {
         return MODEM_RESPONSE_OK;
@@ -452,7 +452,7 @@ int GPRS::network_registration_gsm(void)
 int GPRS::network_registration_gprs(void)
 {
     send_cmd("AT+CGREG?", DEFAULT_TIMEOUT, NULL);
-    k_sleep(K_SECONDS(DEFAULT_TIMEOUT));
+    k_sleep(K_MSEC(100));
     if ((NULL != strstr(resp_buf, "+CGREG: 0,1")) ||
         (NULL != strstr(resp_buf, "+CGREG: 0,5"))) {
         return MODEM_RESPONSE_OK;
