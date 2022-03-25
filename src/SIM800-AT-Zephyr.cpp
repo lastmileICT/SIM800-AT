@@ -18,35 +18,16 @@
 #ifndef UNIT_TEST
 
 #include "SIM800-AT.h"
-#include <inttypes.h>
-#ifdef CONFIG_SOC_SERIES_STM32L0X
-#include "stm32l072xx.h"
-#endif
 
-#ifdef __ZEPHYR__
 #include <zephyr.h>
 #include <drivers/uart.h>
 #include <string.h>
 #include <time.h>
-
-#define XSTR(x) STR(x)
-#define STR(x) #x
+#include <inttypes.h>
 
 #define UART_GSM DT_LABEL(DT_ALIAS(uart_gsm))
 #define UART_GSM_BASE_ADDR DT_REG_ADDR(DT_ALIAS(uart_gsm))
-const struct device *gsm_dev = device_get_binding(UART_GSM);
-static USART_TypeDef *UARTGSM = (USART_TypeDef *)(UART_GSM_BASE_ADDR);
 
-int time_out = DEFAULT_TIMEOUT;
-char ack_message[32];
-size_t len_ack;
-uint32_t time_initial;
-uint16_t actual_ack_num_bytes;
-volatile size_t current_index = 0;
-static volatile bool ack_received = false;
-
-static char *resp_buf = NULL;
-static uint32_t sizeof_resp_buf;
 
 int GPRS::ip_rx_data(void)
 {
@@ -55,7 +36,7 @@ int GPRS::ip_rx_data(void)
     send_cmd("AT+CIPRXGET=2,1460", DEFAULT_TIMEOUT, NULL);
     k_sleep(K_SECONDS(DEFAULT_TIMEOUT));
     uint16_t tcp_packet_len;
-    sscanf((char *)resp_buf, " +CIPRXGET: 2,%hu,0", &tcp_packet_len);
+    sscanf(resp_buf, " +CIPRXGET: 2,%hu,0", &tcp_packet_len);
     return tcp_packet_len;
 }
 
@@ -63,52 +44,60 @@ void irq_handler(const struct device *dev, void* user_data)
 {
     char c;
     bool done = false;
-    UARTGSM->CR1 &= ~(USART_CR1_RXNEIE); // disable receive interrupts
+    GPRS *modem = (GPRS *)user_data;
+
+    modem->UARTGSM->CR1 &= ~(USART_CR1_RXNEIE); // disable receive interrupts
 
     // Timer expired or buffer length reached ? There is always one
     // byte reserved for '\0'.
-    if ((current_index == sizeof_resp_buf - 1) \
-        || ((k_uptime_get() / 1000) - time_initial) > time_out) {
+    if ((modem->current_index == modem->resp_buf_len - 1) \
+        || ((k_uptime_get() / 1000) - modem->time_initial) > modem->time_out) {
         // RX interrupts will stay disabled !
-        resp_buf[current_index] = '\0';
+        modem->resp_buf[modem->current_index] = '\0';
         return;
     }
 
-    c = resp_buf[current_index] = (char)UARTGSM->RDR;
+    c = modem->resp_buf[modem->current_index] = (char)(modem->UARTGSM->RDR);
     //USART1->TDR = c; // Debug aid: print incoming data to the console
-    current_index++;
+    modem->current_index++;
 
-    if (len_ack != 0) { // ACK check required ?
-        if (c == ack_message[actual_ack_num_bytes]) {
-            actual_ack_num_bytes++;
+    if (modem->len_ack != 0) { // ACK check required ?
+        if (c == modem->ack_message[modem->actual_ack_num_bytes]) {
+            modem->actual_ack_num_bytes++;
         } else {
-            actual_ack_num_bytes = 0;
+            modem->actual_ack_num_bytes = 0;
         }
 
-        if (actual_ack_num_bytes == len_ack) {
+        if (modem->actual_ack_num_bytes == modem->len_ack) {
             // Acknowledgement string received
-            ack_received = true;
-            resp_buf[current_index] = '\0';
+            modem->ack_received = true;
+            modem->resp_buf[modem->current_index] = '\0';
             done = true;
         }
     }
 
-    UARTGSM->RQR |= USART_RQR_RXFRQ; // clear RXNE again
+    modem->UARTGSM->RQR |= USART_RQR_RXFRQ; // clear RXNE again
     // clear overrun, framing, parity, noise errors
-    UARTGSM->ICR |= (USART_ICR_ORECF | USART_ICR_PECF
+    modem->UARTGSM->ICR |= (USART_ICR_ORECF | USART_ICR_PECF
                     | USART_ICR_FECF | USART_ICR_NCF);
     if (!done) {
-        UARTGSM->CR1 |= USART_CR1_RXNEIE; // enable receive interrupts
+        modem->UARTGSM->CR1 |= USART_CR1_RXNEIE; // enable receive interrupts
     }
 }
 
-void init_modem(char *buf, uint32_t size_buf)
+GPRS::GPRS(uint8_t *rx_buf, size_t rx_buf_size)
 {
-    uart_irq_callback_user_data_set(gsm_dev, irq_handler, NULL);
+    UARTGSM = (USART_TypeDef *)(UART_GSM_BASE_ADDR);
+    gsm_dev = device_get_binding(UART_GSM);
+    uart_irq_callback_user_data_set(gsm_dev, irq_handler, this);
+    this->set_rx_buf(rx_buf, rx_buf_size);
+}
 
-    // Passing the external buffer handle to SIM800 library
-    resp_buf = buf;
-    sizeof_resp_buf = size_buf;
+void GPRS::set_rx_buf(uint8_t *buf, size_t len)
+{
+    // TODO: check no RX in progress
+    resp_buf = (char *)buf;
+    resp_buf_len = len;
 }
 
 void GPRS::send_cmd(const char *cmd, int timeout, const char *ack)
@@ -140,7 +129,7 @@ void GPRS::prepare_for_rx(int timeout, const char *ack)
     // as described in send_cmd().
     if (ack == NULL) {
         // We are reusing the buffer, so clear it before the reuse
-        memset(resp_buf, 0, sizeof_resp_buf);
+        memset(resp_buf, 0, resp_buf_len);
     }
 
     ack_received = false;
@@ -1112,7 +1101,5 @@ int GPRS::ftp_end_session(void)
 
     return MODEM_RESPONSE_OK;
 }
-
-#endif // ZEPHYR
 
 #endif /* UNIT_TEST */

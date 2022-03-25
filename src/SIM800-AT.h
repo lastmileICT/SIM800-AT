@@ -28,23 +28,15 @@
 #elif defined(__ZEPHYR__)
 #include <zephyr.h>
 #endif
+#ifdef CONFIG_SOC_SERIES_STM32L0X
+#include "stm32l072xx.h" // For the USART_TypeDef declaration
+#endif
 
 #define DEFAULT_TIMEOUT 2
 #define MODEM_RESPONSE_OK 0
 #define MODEM_RESPONSE_ERROR -1
 #define MODEM_CME_ERROR -2
 
-#ifdef __ZEPHYR__
-
-/** Initializes the UART interrupts and the buffer.
- * The ISR call-back function read_resp() is configured here and no arguments are passed to the ISR
- * as of now. Also char buffer for collecting the UART data and it's size are set here.
- *  @param buf Pointer to the buffer that will store the received UART data.
- *  @param size_buf Size of the UART buffer
- */
-void init_modem(char *buf, uint32_t size_buf);
-
-#endif // #ifdef __ZEPHYR__
 
 /** GPRS class.
  *  Used for mobile communication. attention that GPRS module communicate with MCU in serial protocol
@@ -124,8 +116,26 @@ public:
 
 #elif defined(__ZEPHYR__)
 
-    GPRS() {};
+    char *resp_buf;
+    size_t resp_buf_len;
 
+    const struct device *gsm_dev;
+    USART_TypeDef *UARTGSM;
+    char ack_message[12];
+    size_t len_ack;
+    int time_out = DEFAULT_TIMEOUT;
+    uint32_t time_initial;
+    uint16_t actual_ack_num_bytes;
+    volatile size_t current_index = 0;
+    volatile bool ack_received = false;
+
+    GPRS(uint8_t *rx_buf, size_t rx_buf_size);
+
+    /** Set / reset the reception buffer. Ideally should be executed when no RX is in progress.
+     *  @param buf Pointer to the buffer that will store the received UART data.
+     *  @param size_buf Size of the UART buffer
+     */
+    void set_rx_buf(uint8_t *buf, size_t len);
     int init(void);
     int test_uart(); // simple AT -> OK serial comm test
     int wakeup(void);
