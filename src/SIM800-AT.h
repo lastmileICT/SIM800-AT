@@ -118,6 +118,7 @@ public:
 
     char *resp_buf;
     size_t resp_buf_len;
+    size_t tcp_send_len;
 
     const struct device *gsm_dev;
     USART_TypeDef *UARTGSM;
@@ -246,7 +247,7 @@ public:
 
     int detach_gprs(void);
     int disable_bearer(void);
-    int send_tcp_data(void *data, int len, uint8_t timeout);
+    int send_tcp_data(void *data, size_t len, uint8_t timeout);
     int reset(void);
     int init_sms(void);
     int check_new_sms(void);

@@ -5,3 +5,15 @@
 config FTP_READ_WAIT
     int "Wait time in milliseconds to FTP transfer a flash page."
     default 500
+
+config SIM800_TCP_QUICKSEND
+    bool "Use TCP quicksend."
+    default n
+    help
+        Enable SIM800 TCP quicksend, where the datastream is ended with Ctrl-Z.
+
+config SIM800_ACK_TCP_TX
+    bool "Acknowledge TCP TX bytes"
+    default n
+    help
+        Enable TCP TX ACK bytes balance and retries.
