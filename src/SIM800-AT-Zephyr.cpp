@@ -295,13 +295,13 @@ int GPRS::setup_clock(void)
     }
 
     send_cmd("AT+CNTP=time1.google.com,0", DEFAULT_TIMEOUT, "OK");
-    k_sleep(K_SECONDS(1));
+    k_sleep(K_MSEC(300));
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
 
     send_cmd("AT+CNTP", 6, "+CNTP: 1");
-    k_sleep(K_SECONDS(3));
+    k_sleep(K_SECONDS(2));
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
@@ -470,7 +470,7 @@ int GPRS::check_signal_strength(void)
 uint32_t GPRS::get_time(void)
 {
     send_cmd("AT+CCLK?", DEFAULT_TIMEOUT, NULL);
-    k_sleep(K_SECONDS(DEFAULT_TIMEOUT));
+    k_sleep(K_MSEC(500));
     if (0 != strlen(resp_buf)) {
         struct tm timeinfo;
         int timezone;
