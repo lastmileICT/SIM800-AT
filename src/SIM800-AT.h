@@ -32,7 +32,7 @@
 #include "stm32l072xx.h" // For the USART_TypeDef declaration
 #endif
 
-#define DEFAULT_TIMEOUT 2
+#define DEFAULT_TIMEOUT 50
 #define MODEM_RESPONSE_OK 0
 #define MODEM_RESPONSE_ERROR -1
 #define MODEM_CME_ERROR -2
@@ -96,7 +96,7 @@ public:
     int close_tcp_quick(char *resp_buf, int size_buf);
     int detach_gprs(char *resp_buf, int size_buf);
     int disable_bearer(char *resp_buf, int size_buf);
-    int send_tcp_data(unsigned char *data, int len, char *resp_buf, int size_buf, uint8_t timeout);
+    int send_tcp_data(unsigned char *data, int len, char *resp_buf, int size_buf, size_t timeout);
     int reset(char *resp_buf, int size_buf);
     int init_sms(char *resp_buf, int size_buf);
     int check_new_sms(char *resp_buf, int size_buf);
@@ -247,7 +247,7 @@ public:
 
     int detach_gprs(void);
     int disable_bearer(void);
-    int send_tcp_data(void *data, size_t len, uint8_t timeout);
+    int send_tcp_data(const void *data, size_t len, size_t timeout);
     int reset(void);
     int init_sms(void);
     int check_new_sms(void);
@@ -330,7 +330,7 @@ public:
      * the Rx interrupt will be disabled.
      * @param ack_message Pointer to a string containing the expected acknowledgement.
      */
-    void prepare_for_rx(int timeout, const char *ack);
+    void prepare_for_rx(size_t timeout, const char *ack);
 
     /**
      * Implements FTP session initialisation to be used by FTPGETTOFS as well as FTPEXTGET.
@@ -444,7 +444,8 @@ private:
      * this can only happen if there is a reception at the Rx pin. This is fixed by clearing the buffer.
      * See the implementation of the ISR function "read_resp()" for more details.
      */
-    void send_cmd(const char *cmd, int timeout, const char *ack);
+    void send_cmd(const char *cmd, size_t timeout, const char *ack,
+                  bool no_wait=false);
 #endif
 
     void clear_buffer(void);
