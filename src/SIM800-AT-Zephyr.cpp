@@ -182,6 +182,10 @@ int GPRS::init(void)
     // set, so we don't consider missing ACK an error.
     send_cmd("AT+CSCLK=0", DEFAULT_TIMEOUT, "OK");
 
+    // Try to use the maximum GPRS class (12) for SIM800, in which 4 TX
+    // slots and 4 RX slots are being used. We don't mind errors here.
+    send_cmd("AT+CGMSCLASS=12", DEFAULT_TIMEOUT, "OK");
+
     return MODEM_RESPONSE_OK;
 }
 
