@@ -487,19 +487,12 @@ int GPRS::attach_gprs(void)
 
 int GPRS::enable_get_data_manually(void)
 {
-    // Startup single IP connection
-    send_cmd("AT+CIPMUX=0", DEFAULT_TIMEOUT, "OK");
+    // CIPMUX=0 -> set single IP connection
+    // CIPRXGET=1 -> poll for RX data.
+    send_cmd("AT+CIPMUX=0;+CIPRXGET=1", DEFAULT_TIMEOUT, "OK");
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
-
-    //Enable getting data from network manually.
-    send_cmd("AT+CIPRXGET=1", DEFAULT_TIMEOUT, "OK");
-    if (ack_received == false) {
-        return MODEM_RESPONSE_ERROR;
-    }
-
-    // If the responses are as expected
     return MODEM_RESPONSE_OK;
 }
 
