@@ -178,27 +178,22 @@ int GPRS::init(void)
         return MODEM_RESPONSE_ERROR;
     }
 
-    // Disable clock down scaling
+    // Disable clock down scaling. Might not work if downscaling not
+    // set, so we don't consider missing ACK an error.
     send_cmd("AT+CSCLK=0", DEFAULT_TIMEOUT, "OK");
-    if (ack_received == false) {
-        return MODEM_RESPONSE_ERROR;
-    }
 
-    // If the response is as expected
-    printf("Init OK\n");
     return MODEM_RESPONSE_OK;
 }
 
 int GPRS::wakeup(void)
 {
     send_cmd("AT", DEFAULT_TIMEOUT, NULL);
-    // If the response is as expected
     return MODEM_RESPONSE_OK;
 }
 
 int GPRS::check_pin(void)
 {
-    send_cmd("AT+CPIN?", 3000, "READY");
+    send_cmd("AT+CPIN?", 3000, "PIN: READY");
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
@@ -533,12 +528,26 @@ int GPRS::activate_gprs(void)
 
 int GPRS::get_ip(void)
 {
+    // The AT command below returns either the IP address as a string
+    // or ERROR if IP is not set. It's easier to search for ERROR than
+    // to sscanf for the ip addresses components.
     send_cmd("AT+CIFSR", DEFAULT_TIMEOUT, "ERROR");
     if (ack_received == true) {
         return MODEM_RESPONSE_ERROR;
     }
-    // If the response gives a valid IP address
     return MODEM_RESPONSE_OK;
+    // Alternative implementation for actually fetching the IP addres.
+    /*
+    uint16_t ip[4];
+    int c = sscanf(resp_buf, "%3hu.%3hu.%3hu.%3hu", &ip[0], &ip[1], &ip[2], &ip[3]);
+    // Newlib does not support hhu
+    //uint8_t ip[4];
+    //int c = sscanf(resp_buf, "%hhu.%hhu.%hhu.%hhu", &ip[0], &ip[1], &ip[2], &ip[3]);
+    if (c == 4) {
+        return MODEM_RESPONSE_OK;
+    }
+    return MODEM_RESPONSE_ERROR;
+    */
 }
 
 int GPRS::connect_tcp(const char *domain, const char *port)
