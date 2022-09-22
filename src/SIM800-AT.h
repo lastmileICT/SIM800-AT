@@ -96,7 +96,7 @@ public:
     int close_tcp_quick(char *resp_buf, int size_buf);
     int detach_gprs(char *resp_buf, int size_buf);
     int disable_bearer(char *resp_buf, int size_buf);
-    int send_tcp_data(unsigned char *data, int len, char *resp_buf, int size_buf, size_t timeout);
+    int send_tcp_data(unsigned char *data, int len, char *resp_buf, int size_buf);
     int reset(char *resp_buf, int size_buf);
     int init_sms(char *resp_buf, int size_buf);
     int check_new_sms(char *resp_buf, int size_buf);
@@ -247,7 +247,7 @@ public:
 
     int detach_gprs(void);
     int disable_bearer(void);
-    int send_tcp_data(const void *data, size_t len, size_t timeout);
+    int send_tcp_data(const void *data, size_t len);
     int reset(void);
     int init_sms(void);
     int check_new_sms(void);

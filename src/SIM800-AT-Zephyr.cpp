@@ -113,8 +113,18 @@ void GPRS::send_cmd(const char *cmd, size_t timeout, const char *ack,
     uart_poll_out(gsm_dev, '\n');
     // Prepare for processing in the receive interrupt
     prepare_for_rx(timeout, ack);
+
+    // Some commands can specify a timeout but don't want to wait for
+    // the ack
     if (!no_wait) {
-        k_sleep(K_MSEC(timeout));
+        // Sleep in 20ms slices until we get the ack back.
+        int wait_count = timeout / 20;
+        while (wait_count--) {
+            k_sleep(K_MSEC(20));
+            if (ack_received){
+                break;
+            }
+        }
     }
 }
 
@@ -157,8 +167,8 @@ int GPRS::test_uart()
 
 int GPRS::init(void)
 {
-    send_cmd("AT", 100, "OK");
-    send_cmd("AT", 100, "OK");
+    send_cmd("AT", 300, "OK");
+    send_cmd("AT", 300, "OK");
     if (!ack_received) {
         return MODEM_RESPONSE_ERROR;
     }
@@ -175,6 +185,7 @@ int GPRS::init(void)
     }
 
     // If the response is as expected
+    printf("Init OK\n");
     return MODEM_RESPONSE_OK;
 }
 
@@ -187,7 +198,7 @@ int GPRS::wakeup(void)
 
 int GPRS::check_pin(void)
 {
-    send_cmd("AT+CPIN?", DEFAULT_TIMEOUT, "READY");
+    send_cmd("AT+CPIN?", 3000, "READY");
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
@@ -614,9 +625,8 @@ void GPRS::powerdown(void)
     send_cmd("AT+CPOWD=0", DEFAULT_TIMEOUT, NULL, true);
 }
 
-int GPRS::send_tcp_data(const void *data, size_t len, size_t rx_timeout)
+int GPRS::send_tcp_data(const void *data, size_t len)
 {
-    //int tx_timeout_ms = len * 3;
     char cmd[64];
     this->tcp_send_len += len;
     //LOG_DBG("Sending message of size %d for a total of %d", len, tcp_send_len);
@@ -625,7 +635,7 @@ int GPRS::send_tcp_data(const void *data, size_t len, size_t rx_timeout)
 #else
     snprintf(cmd, sizeof(cmd), "AT+CIPSEND=%d", len);
 #endif
-    send_cmd(cmd, 600, ">");
+    send_cmd(cmd, 900, ">");
     if (ack_received == false) {
         //LOG_DBG("   Bailing early - no ack received on send");
         return MODEM_RESPONSE_ERROR;
@@ -641,8 +651,8 @@ int GPRS::send_tcp_data(const void *data, size_t len, size_t rx_timeout)
     uart_poll_out(gsm_dev, '\x1A');
 #endif
 
-    prepare_for_rx(800, NULL);
-    k_sleep(K_MSEC(800));
+    prepare_for_rx(1000, NULL);
+    k_sleep(K_MSEC(1000));
     //LOG_DBG("   Got reply after send tcp data: %.16s", resp_buf);
 
     if (strstr(resp_buf, "SEND OK") == NULL && strstr(resp_buf, "DATA ACCEPT") == NULL) {
