@@ -302,29 +302,28 @@ int GPRS::setup_clock(void)
 int GPRS::setup_bearer(const char* apn, const char* user, const char* pass)
 {
     // Set the type of Internet connection as GPRS
-    char cmd[64];
-    send_cmd("AT+SAPBR=3,1,Contype,GPRS", 100, "OK");
+    char cmd[50];
+    send_cmd("AT+SAPBR=3,1,Contype,GPRS", DEFAULT_TIMEOUT, "OK");
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
-
     // Set the access point name string
     snprintf(cmd, sizeof(cmd), "AT+SAPBR=3,1,APN,\"%s\"", apn);
-    send_cmd(cmd, 100, "OK");
+    send_cmd(cmd, DEFAULT_TIMEOUT, "OK");
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
 
     // Set the user name for APN
     snprintf(cmd, sizeof(cmd), "AT+SAPBR=3,1,USER,\"%s\"", user);
-    send_cmd(cmd, 100, "OK");
+    send_cmd(cmd, DEFAULT_TIMEOUT, "OK");
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
 
     // Set the password for APN
     snprintf(cmd, sizeof(cmd), "AT+SAPBR=3,1,PWD,\"%s\"", pass);
-    send_cmd(cmd, 100, "OK");
+    send_cmd(cmd, DEFAULT_TIMEOUT, "OK");
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
@@ -334,8 +333,8 @@ int GPRS::setup_bearer(const char* apn, const char* user, const char* pass)
 
 int GPRS::enable_bearer(void)
 {
-    send_cmd("AT+SAPBR=1,1", 1500, NULL); // Response time can be upto 85 seconds
-    if (NULL != strstr(resp_buf, "OK")) {
+    send_cmd("AT+SAPBR=1,1", 3500, "OK"); // Response time can be upto 85 seconds
+    if (ack_received) {
         return MODEM_RESPONSE_OK;
     }
     // Returns with ERROR if it's already open or if actually an error
