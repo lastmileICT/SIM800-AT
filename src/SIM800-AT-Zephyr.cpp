@@ -35,7 +35,12 @@ int GPRS::ip_rx_data(void)
 {
     // The length of output data can not exceed 1460 bytes at a time,
     // based on SIM800 Series_AT Command Manual.
-    send_cmd("AT+CIPRXGET=2,1460", DEFAULT_TIMEOUT, NULL);
+    char cmd[18];
+    snprintf(cmd, sizeof(cmd), "AT+CIPRXGET=2,%d", resp_buf_len);
+    // We assume the worst case transfer speed of 9.6kbps, equivalent
+    // to ~1byte/ms. We also append a margin of 55ms.
+    int timeout = resp_buf_len + 55;
+    send_cmd(cmd, timeout, NULL);
     uint16_t tcp_packet_len;
     //LOG_DBG("   Got reply after CIPRXGET:%s", resp_buf+2);
     sscanf(resp_buf, " +CIPRXGET: 2,%hu,0", &tcp_packet_len);
