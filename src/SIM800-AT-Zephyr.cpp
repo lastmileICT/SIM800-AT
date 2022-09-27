@@ -137,6 +137,7 @@ void GPRS::send_cmd(const char *cmd, size_t timeout, const char *ack,
 // Resets the necessary variables and enables the Rx interrupt
 void GPRS::prepare_for_rx(size_t timeout, const char *ack)
 {
+    uart_irq_rx_disable(gsm_dev);
     ack_message[0] = '\0';
     // Make the ack_message configurable
     len_ack = 0;
