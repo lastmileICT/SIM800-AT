@@ -2,10 +2,6 @@
 # Copyright (c) 2021 Scene Connect Ltd & Connected Energy Technologies Ltd.
 # SPDX-License-Identifier: Apache-2.0
 
-config FTP_READ_WAIT
-    int "Wait time in milliseconds to FTP transfer a flash page."
-    default 500
-
 config SIM800_TCP_QUICKSEND
     bool "Use TCP quicksend."
     default n

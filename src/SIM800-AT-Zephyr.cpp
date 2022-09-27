@@ -29,7 +29,16 @@ LOG_MODULE_REGISTER(sim800, CONFIG_GSM_LOG_LEVEL);
 
 #define UART_GSM DT_LABEL(DT_ALIAS(uart_gsm))
 #define UART_GSM_BASE_ADDR DT_REG_ADDR(DT_ALIAS(uart_gsm))
-
+#define UART_GSM_SPEED DT_PROP(DT_ALIAS(uart_gsm), current_speed)
+#ifndef GSM_MAX_RX_BUF
+#define GSM_MAX_RX_BUF 150
+#endif
+// The delay below has to be scaled with the flash page size in the
+// MCU, which in general is the largest RX buffer we're going to
+// get. General formula for wait times in milliseconds would be:
+// `delay_per_buffer = 1.44 * (sizeof(buffer) * 8000 / serial_bps)`,
+// where the 1.44 = 36/25 term is a safety offset ratio.
+#define FTP_READ_WAIT int((36 * GSM_MAX_RX_BUF * 8000 / (31 * UART_GSM_SPEED)) + 30)
 
 int GPRS::ip_rx_data(void)
 {
@@ -1087,7 +1096,7 @@ int GPRS::ftp_read_from_ram(int length, int offset)
 {
     char cmd[64];
     snprintf(cmd, sizeof(cmd), "AT+FTPEXTGET=3,%d,%d", offset, length);
-    send_cmd(cmd, CONFIG_FTP_READ_WAIT, NULL);
+    send_cmd(cmd, FTP_READ_WAIT, NULL);
 
     return MODEM_RESPONSE_OK;
 }
