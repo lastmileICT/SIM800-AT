@@ -1048,22 +1048,23 @@ int GPRS::read_ftp_file(const char *file_name, int length, int offset)
     return MODEM_RESPONSE_OK;
 }
 
-int GPRS::ftp_get_to_ram(const char *server, const char *user, const char *pw, const char *file_name,
-                    const char *file_path)
+int GPRS::ftp_get_to_ram(const char *server, const char *user, const char *pw,
+                         const char *file_name, const char *file_path)
 {
     if (ftp_init(server, user, pw, file_name, file_path) != MODEM_RESPONSE_OK) {
         return MODEM_RESPONSE_ERROR;
     }
 
     // Open the FTP session
-    send_cmd("AT+FTPEXTGET=1", 500, NULL); //Takes more than 1 minute to download
+    send_cmd("AT+FTPEXTGET=1", DEFAULT_TIMEOUT, NULL);
     if (NULL == strstr(resp_buf, "OK")) {
         return MODEM_RESPONSE_ERROR;
     }
-    // After this, the caller needs to wait until the response "+FTPEXTGET: 1,0" is received,
-    // which indicates that the downloading is successful.
+    // The caller needs to wait until the response "+FTPEXTGET: 1,0"
+    // is received, which indicates that the downloading is
+    // successful.
+    prepare_for_rx(90000, "EXTGET: 1,0");
 
-    // If the response is as expected
     return MODEM_RESPONSE_OK;
 }
 
