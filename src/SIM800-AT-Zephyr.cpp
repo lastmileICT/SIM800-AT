@@ -182,8 +182,15 @@ int GPRS::test_uart()
 
 int GPRS::init(void)
 {
-    send_cmd("AT", 300, "OK");
-    send_cmd("AT", 300, "OK");
+    // On higher baud rates, we might need to bang AT a number of
+    // times, to train the modem's autobad feature.
+    int i = 6;
+    while(i--) {
+        send_cmd("AT", 300, "OK");
+        if (ack_received) {
+            break;
+        }
+    }
     if (!ack_received) {
         return MODEM_RESPONSE_ERROR;
     }
@@ -507,7 +514,7 @@ int GPRS::enable_get_data_manually(void)
 {
     // CIPMUX=0 -> set single IP connection
     // CIPRXGET=1 -> poll for RX data.
-    send_cmd("AT+CIPMUX=0;+CIPRXGET=1", DEFAULT_TIMEOUT, "OK");
+    send_cmd("AT+CIPMUX=0;+CIPRXGET=1", DEFAULT_TIMEOUT * 2, "OK");
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
