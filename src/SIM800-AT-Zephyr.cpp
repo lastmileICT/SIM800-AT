@@ -42,17 +42,28 @@ LOG_MODULE_REGISTER(sim800, CONFIG_GSM_LOG_LEVEL);
 
 int GPRS::ip_rx_data(void)
 {
+    char cmd[18];
+    uint16_t tcp_packet_len = 0;
+    uint16_t tcp_avail = 65535;
+
+    /* Test for TCP data length still increasing */
+    snprintf(cmd, sizeof(cmd), "AT+CIPRXGET=4");
+    while(tcp_packet_len != tcp_avail) {
+        tcp_packet_len = tcp_avail;
+        send_cmd(cmd, DEFAULT_TIMEOUT, "OK");
+        sscanf(resp_buf, " +CIPRXGET: 4,%hu,0", &tcp_avail);
+        k_sleep(K_MSEC(150));
+    }
+
     // The length of output data can not exceed 1460 bytes at a time,
     // based on SIM800 Series_AT Command Manual.
-    char cmd[18];
-    snprintf(cmd, sizeof(cmd), "AT+CIPRXGET=2,%d", resp_buf_len);
     // We assume the worst case transfer speed of 9.6kbps, equivalent
     // to ~1byte/ms. We also append a margin of 55ms.
+    snprintf(cmd, sizeof(cmd), "AT+CIPRXGET=2,%d", resp_buf_len);
     int timeout = resp_buf_len + 55;
     send_cmd(cmd, timeout, NULL);
-    uint16_t tcp_packet_len;
-    //LOG_DBG("   Got reply after CIPRXGET:%s", resp_buf+2);
     sscanf(resp_buf, " +CIPRXGET: 2,%hu,0", &tcp_packet_len);
+
     return tcp_packet_len;
 }
 
@@ -119,7 +130,6 @@ void GPRS::set_rx_buf(uint8_t *buf, size_t len)
 void GPRS::send_cmd(const char *cmd, size_t timeout, const char *ack,
                     bool no_wait /*=false*/)
 {
-    //LOG_DBG("   Sending cmd: %s", cmd);
     for (int i = 0; i < (int)strlen(cmd); i++) {
         uart_poll_out(gsm_dev, cmd[i]);
     }
@@ -573,9 +583,8 @@ int GPRS::connect_tcp(const char *domain, const char *port)
     char cmd[100];
     this->tcp_send_len = 0;
     sprintf(cmd, "AT+CIPSTART=TCP,%s,%s", domain, port);
-    send_cmd(cmd, 1500, NULL);
-    if ((NULL != strstr(resp_buf, "OK")) ||
-        (NULL != strstr(resp_buf, "ALREADY CONNECT"))) {
+    send_cmd(cmd, 5000, "CONNECT OK");
+    if ((NULL != strstr(resp_buf, "CONNECT OK"))) {
 #ifdef CONFIG_SIM800_TCP_QUICKSEND
         // If configured, set the SIM800 to support TCP quicksend - in
         // which the data stream length is not declared upfront, but
@@ -585,7 +594,6 @@ int GPRS::connect_tcp(const char *domain, const char *port)
 #endif
         return MODEM_RESPONSE_OK;
     }
-    //LOG_DBG("TCP CONNECT fail, response:  %.16s", resp_buf);
     return MODEM_RESPONSE_ERROR; // Invalid
 }
 
@@ -656,15 +664,14 @@ int GPRS::send_tcp_data(const void *data, size_t len)
 {
     char cmd[64];
     this->tcp_send_len += len;
-    //LOG_DBG("Sending message of size %d for a total of %d", len, tcp_send_len);
-#ifdef CONFIG_SIM800_USE_QUICKSEND
+
+#ifdef CONFIG_SIM800_TCP_QUICKSEND
     snprintf(cmd, sizeof(cmd), "AT+CIPSEND");
 #else
     snprintf(cmd, sizeof(cmd), "AT+CIPSEND=%d", len);
 #endif
     send_cmd(cmd, 900, ">");
     if (ack_received == false) {
-        //LOG_DBG("   Bailing early - no ack received on send");
         return MODEM_RESPONSE_ERROR;
     }
 
@@ -676,20 +683,26 @@ int GPRS::send_tcp_data(const void *data, size_t len)
     // Send Ctrl-Z, if using quicksend
     k_sleep(K_MSEC(10));
     uart_poll_out(gsm_dev, '\x1A');
+    prepare_for_rx(3000, "DATA ACCEPT");
+#else
+    prepare_for_rx(3000, "SEND OK");
 #endif
 
-    prepare_for_rx(1000, NULL);
-    k_sleep(K_MSEC(1000));
-    //LOG_DBG("   Got reply after send tcp data: %.16s", resp_buf);
+    // Sleep in 20ms slices until we get the ack back.
+    int wait_count = 3000 / 20;
+    while (wait_count--) {
+        k_sleep(K_MSEC(20));
+        if (ack_received){
+            break;
+        }
+    }
 
-    if (strstr(resp_buf, "SEND OK") == NULL && strstr(resp_buf, "DATA ACCEPT") == NULL) {
+    if (!ack_received) {
         if (strstr(resp_buf, "+CME ERROR") != NULL) {
             // An error related to mobile equipment or network
-            //LOG_DBG("   Bailing with CME error");
             return MODEM_CME_ERROR;
         }
         else {
-            //LOG_DBG("   Bailing with modem response error,  %.16s", resp_buf);
             return MODEM_RESPONSE_ERROR;
         }
     }
@@ -704,13 +717,11 @@ int GPRS::send_tcp_data(const void *data, size_t len)
     char *ack_pos = NULL;
     while(iter--) {
         send_cmd(cmd, DEFAULT_TIMEOUT, NULL);
-        //LOG_DBG("   CIPACK: %s", resp_buf);
         // ACK string position varies between 2 and three characters
         // with mixed whitespace so we can't sscanf for it properly.
         ack_pos = strstr(resp_buf, "+CIPACK:");
         if (NULL != ack_pos) {
             sscanf(ack_pos, "+CIPACK: %d,%d ", &ack_len, &reported_total_len);
-            //LOG_DBG("   Acknowledged: %u out of %u sent", ack_len, this->tcp_send_len);
         }
 #ifndef CONFIG_SIM800_TCP_QUICKSEND
         if (ack_len >= tcp_send_len) {
@@ -721,7 +732,6 @@ int GPRS::send_tcp_data(const void *data, size_t len)
             break;
         }
         if(iter >= 1) {
-            //LOG_DBG("    WILL RETRY CIPACK");
             k_sleep(K_MSEC(1000));
         }
     }
