@@ -42,7 +42,7 @@ LOG_MODULE_REGISTER(sim800, CONFIG_GSM_LOG_LEVEL);
 
 int GPRS::ip_rx_data(void)
 {
-    char cmd[18];
+    char cmd[19];
     uint16_t tcp_packet_len = 0;
     uint16_t tcp_avail = 65535;
 
@@ -59,10 +59,9 @@ int GPRS::ip_rx_data(void)
     // based on SIM800 Series_AT Command Manual.
     // We assume the worst case transfer speed of 9.6kbps, equivalent
     // to ~1byte/ms. We also append a margin of 55ms.
-    snprintf(cmd, sizeof(cmd), "AT+CIPRXGET=2,%d", resp_buf_len);
-    int timeout = resp_buf_len + 55;
+    snprintf(cmd, sizeof(cmd), "AT+CIPRXGET=2,%d", tcp_packet_len);
+    int timeout = tcp_packet_len + 55;
     send_cmd(cmd, timeout, NULL);
-    sscanf(resp_buf, " +CIPRXGET: 2,%hu,0", &tcp_packet_len);
 
     return tcp_packet_len;
 }
