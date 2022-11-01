@@ -51,7 +51,12 @@ int GPRS::ip_rx_data(void)
     while(tcp_packet_len != tcp_avail) {
         tcp_packet_len = tcp_avail;
         send_cmd(cmd, DEFAULT_TIMEOUT, "OK");
-        sscanf(resp_buf, " +CIPRXGET: 4,%hu,0", &tcp_avail);
+        // ACK string position varies between 2 and three characters
+        // with mixed whitespace so we can't sscanf for it properly.
+        char *ack_pos = strstr(resp_buf, "+CIPRXGET:");
+        if (NULL != ack_pos) {
+            sscanf(ack_pos, "+CIPRXGET: 4,%hu", &tcp_avail);
+        }
         k_sleep(K_MSEC(150));
     }
 
@@ -59,11 +64,13 @@ int GPRS::ip_rx_data(void)
     // based on SIM800 Series_AT Command Manual.
     // We assume the worst case transfer speed of 9.6kbps, equivalent
     // to ~1byte/ms. We also append a margin of 55ms.
+    if(tcp_packet_len > 1460) tcp_packet_len = 1460;
+    if(tcp_packet_len == 0) return 0;
     snprintf(cmd, sizeof(cmd), "AT+CIPRXGET=2,%d", tcp_packet_len);
     int timeout = tcp_packet_len + 55;
     send_cmd(cmd, timeout, NULL);
 
-    return tcp_packet_len;
+    return tcp_avail;
 }
 
 void irq_handler(const struct device *dev, void* user_data)
