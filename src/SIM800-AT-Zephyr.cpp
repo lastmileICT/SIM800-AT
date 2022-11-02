@@ -59,18 +59,45 @@ int GPRS::ip_rx_data(void)
         }
         k_sleep(K_MSEC(150));
     }
+    if (tcp_packet_len == 0) {
+        return 0;
+    }
 
     // The length of output data can not exceed 1460 bytes at a time,
     // based on SIM800 Series_AT Command Manual.
     // We assume the worst case transfer speed of 9.6kbps, equivalent
     // to ~1byte/ms. We also append a margin of 55ms.
-    if(tcp_packet_len > 1460) tcp_packet_len = 1460;
-    if(tcp_packet_len == 0) return 0;
+    if (tcp_packet_len > 1460) {
+        tcp_packet_len = 1460;
+    }
     snprintf(cmd, sizeof(cmd), "AT+CIPRXGET=2,%d", tcp_packet_len);
     int timeout = tcp_packet_len + 55;
     send_cmd(cmd, timeout, NULL);
 
-    return tcp_avail;
+    size_t wasted = strip_modem_response(tcp_packet_len);
+    if (tcp_packet_len > (resp_buf_len - wasted)) {
+        tcp_packet_len = resp_buf_len - wasted;
+    }
+    return tcp_packet_len;
+}
+
+// Strips the modem response and moves the following count bytes to the
+// start of the response buffer. Returns count bytes stripped.
+size_t GPRS::strip_modem_response(size_t count)
+{
+    // The modem response is enclosed between two CR-LF
+    // sequences. Look for the second occurence of CR LF starting from
+    // position 3 in the buffer.
+    for (size_t pos = 2; pos <= resp_buf_len - 2; pos++) {
+        if (resp_buf[pos] == 0x0D && resp_buf[pos + 1] == 0x0A) {
+            if ((count + pos) > resp_buf_len) {
+                count = resp_buf_len - pos;
+            }
+            memmove(resp_buf, resp_buf + pos + 2, count);
+            return pos + 2;
+        }
+    }
+    return 0;
 }
 
 void irq_handler(const struct device *dev, void* user_data)
@@ -1120,8 +1147,12 @@ int GPRS::ftp_read_from_ram(int length, int offset)
     char cmd[64];
     snprintf(cmd, sizeof(cmd), "AT+FTPEXTGET=3,%d,%d", offset, length);
     send_cmd(cmd, FTP_READ_WAIT, NULL);
-
-    return MODEM_RESPONSE_OK;
+    if (strip_modem_response(length) > 0) {
+        return MODEM_RESPONSE_OK;
+    }
+    else {
+        return MODEM_RESPONSE_ERROR;
+    }
 }
 
 int GPRS::ftp_end_session(void)

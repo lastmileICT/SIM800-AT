@@ -291,6 +291,14 @@ public:
     int ip_rx_data(void);
 
     /**
+     * Strip the modem response from the start of a buffer and move the rest
+     * of the contents to the start of the buffer
+     * @param count The number of bytes after the strip to move to start
+     * @return The number of bytes stripped
+     */
+    size_t strip_modem_response(size_t count);
+
+    /**
      * Check the current bearer status sending the command "AT+SAPBR=2,1"
      * to the GSM modem.
      * @return Returns -1 if invalid or no response from the modem.
