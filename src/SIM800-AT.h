@@ -146,6 +146,7 @@ public:
     int load_ssl(const char *filename, const char *cert, int filesize);
     int ssl_set_cert(const char *filename);
     int enable_ssl(void);
+    int disable_ssl(void);
     int enable_get_data_manually(void);
     int setup_clock(void);
     /**

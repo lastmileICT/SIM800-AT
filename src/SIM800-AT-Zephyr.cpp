@@ -347,6 +347,17 @@ int GPRS::enable_ssl(void)
     return MODEM_RESPONSE_OK;
 }
 
+int GPRS::disable_ssl(void)
+{
+    send_cmd("AT+CIPSSL=0", DEFAULT_TIMEOUT, "OK");
+    if (ack_received == false) {
+        return MODEM_RESPONSE_ERROR;
+    }
+
+    // If the response is as expected
+    return MODEM_RESPONSE_OK;
+}
+
 int GPRS::setup_clock(void)
 {
     send_cmd("AT+CNTPCID=1", DEFAULT_TIMEOUT, "OK");
