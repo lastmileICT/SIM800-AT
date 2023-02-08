@@ -322,12 +322,12 @@ public:
     int answer(void);
 
     /**
-     * This function only sends the command (AT+COPS=?) for searching the available networks.
-     * Reading the response must be done separately using the read_resp() function.
-     * It can take upto 3 minutes to get a response.
+     * This function sends the command (AT+COPS=?) for searching the available networks.
+     * Reading the response must be done separately.
+     * It can take up to 45 seconds to get a response.
      * So, need to be careful about a watchdog reset in the main program.
      */
-    void search_networks(void);
+    int search_networks(void);
 
     /**
      * This function needs to be called after a command is sent to the GSM modem.

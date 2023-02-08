@@ -468,15 +468,19 @@ int GPRS::get_active_network(void)
     return MODEM_RESPONSE_ERROR;
 }
 
-void GPRS::search_networks(void)
+int GPRS::search_networks(void)
 {
-    send_cmd("AT+COPS=?", 120000, NULL, true);
+    send_cmd("AT+COPS=?", 45000, "OK");
+    if (ack_received == false) {
+        return MODEM_RESPONSE_ERROR;
+    }
+    return MODEM_RESPONSE_OK;
 }
 
 int GPRS::select_network(const char *network)
 {
     char cmd[64];
-    snprintf(cmd, sizeof(cmd), "AT+COPS=4,1,\"%s\"", network);
+    snprintf(cmd, sizeof(cmd), "AT+COPS=4,0,\"%s\"", network);
     send_cmd(cmd, 120000, "OK");
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
@@ -644,11 +648,12 @@ int GPRS::connect_tcp(const char *domain, const char *port)
 int GPRS::close_pdp_context(void)
 {
     // Close the GPRS PDP context.
-    send_cmd("AT+CIPSHUT", 800, NULL);
-    if (NULL != strstr(resp_buf, "SHUT OK")) {
-        return MODEM_RESPONSE_OK;
+    send_cmd("AT+CIPSHUT", 65000, "SHUT OK");
+    if (ack_received == false) {
+        return MODEM_RESPONSE_ERROR;
     }
-    return MODEM_RESPONSE_ERROR;
+    // If the response is as expected
+    return MODEM_RESPONSE_OK;
 }
 
 int GPRS::close_tcp(void)
