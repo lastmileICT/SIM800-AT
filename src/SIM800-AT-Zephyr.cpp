@@ -145,7 +145,10 @@ void irq_handler(const struct device *dev, void* user_data)
     }
 }
 
-GPRS::GPRS(uint8_t *rx_buf, size_t rx_buf_size)
+GPRS::GPRS(uint8_t *rx_buf, size_t rx_buf_size,
+            void (*_feed_watchdog)(int), int* _wdt_channel)
+            : feed_watchdog{_feed_watchdog}, wdt_channel{_wdt_channel}
+
 {
     UARTGSM = (USART_TypeDef *)(UART_GSM_BASE_ADDR);
     gsm_dev = device_get_binding(UART_GSM);
@@ -177,6 +180,9 @@ void GPRS::send_cmd(const char *cmd, size_t timeout, const char *ack,
         // Sleep in 20ms slices until we get the ack back.
         int wait_count = timeout / 20;
         while (wait_count--) {
+            if(wdt_channel != NULL) {
+                feed_watchdog(*wdt_channel);
+            }
             k_sleep(K_MSEC(20));
             if (ack_received){
                 break;

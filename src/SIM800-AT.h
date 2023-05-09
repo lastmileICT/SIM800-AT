@@ -129,8 +129,11 @@ public:
     uint16_t actual_ack_num_bytes;
     volatile size_t current_index = 0;
     volatile bool ack_received = false;
+    void (*feed_watchdog)(int);
+    int* wdt_channel;
 
-    GPRS(uint8_t *rx_buf, size_t rx_buf_size);
+    GPRS(uint8_t *rx_buf, size_t rx_buf_size,
+            void (*feed_watchdog)(int), int* wdt_channel);
 
     /** Set / reset the reception buffer. Ideally should be executed when no RX is in progress.
      *  @param buf Pointer to the buffer that will store the received UART data.
