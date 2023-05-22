@@ -1,6 +1,6 @@
 /* SIM800_AT firmware
- * Copyright (c) 2016-2021 Connected Energy Technologies Ltd
- * (www.connectedenergy.net)
+ * Copyright (c) 2016-2023 Inclusive Energy Ltd
+ * (www.inclusive.energy)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,9 +23,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string>
-#ifdef __MBED__
-#include "mbed.h"
-#elif defined(__ZEPHYR__)
+#if defined(__ZEPHYR__)
 #include <zephyr.h>
 #endif
 #ifdef CONFIG_SOC_SERIES_STM32L0X
@@ -44,78 +42,6 @@
 class GPRS
 {
 public:
-#ifdef __MBED__
-    /** Create GPRS instance
-     *  @param tx  uart transmit pin to communicate with GPRS module
-     *  @param rx  uart receive pin to communicate with GPRS module
-     *  @param ri  ring indicator goes low for 120ms when an SMS is received
-     *  @param baudRate baud rate of uart communication
-     */
-    GPRS(PinName tx, PinName rx, PinName ri, int baudRate) : gprsSerial(tx, rx) {};
-
-    Serial gprsSerial;
-
-    /**
-     * Reads the server response through serial port. The function is used in 2 ways.
-     * 1) To read-out the buffer, in which case, no return is actually expected.
-     * 2) To read-out and also check the response against an expected message.
-     * @param time_out Maximum time (seconds) spent for reading the serial port
-     * @param ack_message Pointer to a string containing the expected message.
-     * This argument should be NULL, if no acknowledgment-check is needed.
-     * @return While checking the response against an expected message,
-     * Invalid response : -1
-     * Valid response   : 0
-     * When used only to read-out the buffer, the function always returns -1.
-     */
-    int read_resp(char *resp_buf, int size_buf, int time_out, const char *ack_message);
-
-    int init(char *resp_buf, int size_buf);
-    int wakeup(char *resp_buf, int size_buf);
-    int check_pin(char *resp_buf, int size_buf);
-    int set_pin(const char* pin, char *resp_buf, int size_buf);
-    int check_ssl_cert(const char *filename, int filesize, char *resp_buf, int size_buf);
-    int load_ssl(const char *filename, const char *cert, int filesize, char *resp_buf, int size_buf);
-    int ssl_set_cert(const char *filename, char *resp_buf, int size_buf);
-    int enable_ssl(char *resp_buf, int size_buf);
-    int enable_get_data_manually(char *resp_buf, int size_buf);
-    int setup_clock(char *resp_buf, int size_buf);
-    int setup_bearer(const char* apn, const char* user, const char* pass,
-                    char *resp_buf, int size_buf);
-    int enable_bearer(char *resp_buf, int size_buf);
-    int network_registration_gsm(char *resp_buf, int size_buf);
-    int network_registration_gprs(char *resp_buf, int size_buf);
-    int check_signal_strength(char *resp_buf, int size_buf);
-    uint32_t get_time(char *resp_buf, int size_buf);
-    int attach_gprs(char *resp_buf, int size_buf);
-    int set_apn(const char* apn, const char* user, const char* pass,
-                char *resp_buf, int size_buf);
-    int activate_gprs(char *resp_buf, int size_buf);
-    int get_ip(char *resp_buf, int size_buf);
-    int connect_tcp(const char* domain, const char* port, char *resp_buf, int size_buf);
-    int close_tcp(char *resp_buf, int size_buf);
-    int close_tcp_quick(char *resp_buf, int size_buf);
-    int detach_gprs(char *resp_buf, int size_buf);
-    int disable_bearer(char *resp_buf, int size_buf);
-    int send_tcp_data(unsigned char *data, int len, char *resp_buf, int size_buf);
-    int reset(char *resp_buf, int size_buf);
-    int init_sms(char *resp_buf, int size_buf);
-    int check_new_sms(char *resp_buf, int size_buf);
-    int get_sms(int index, char* message, int length_message);
-    int send_get_request(char* url, char *resp_buf, int size_buf);
-    int bt_power_on(char *resp_buf, int size_buf);
-    int accept_bt(char *resp_buf, int size_buf);
-    int accept_bt_pair(char *resp_buf, int size_buf);
-    int send_bt_data(unsigned char *data, int len, char *resp_buf, int size_buf);
-    int check_bt_host(const char *host, char *resp_buf, int size_buf);
-    int change_bt_host(const char* host, char *resp_buf, int size_buf);
-    int send_sms(char *number, char *data, char *resp_buf, int size_buf);
-    int call_up(char *number, char *resp_buf, int size_buf);
-    bool get_location(float *latitude, float *longitude, char *resp_buf, int size_buf);
-    int get_active_network(char *resp_buf, int size_buf);
-    int select_network(const char *network, char *resp_buf, int size_buf);
-
-#elif defined(__ZEPHYR__)
-
     char *resp_buf;
     size_t resp_buf_len;
     size_t tcp_send_len;
@@ -285,9 +211,6 @@ public:
      */
     int select_network(const char *network);
 
-
-#endif /* MBED or ZEPHYR */
-
     /**
      * Requests IP data by sending the command "AT+CIPRXGET=2,x" to the modem.
      * @return Returns the size of TCP/UDP data.
@@ -436,9 +359,6 @@ public:
     int ftp_end_session(void);
 
 private:
-#ifdef __MBED__
-    void send_cmd(const char *cmd);
-#elif defined(__ZEPHYR__)
     /**
      * Function to send the AT commands to SIM800 module.
      * UART transmission is still done using polling method.
@@ -458,7 +378,6 @@ private:
      */
     void send_cmd(const char *cmd, size_t timeout, const char *ack,
                   bool no_wait=false);
-#endif
 
     void clear_buffer(void);
 };

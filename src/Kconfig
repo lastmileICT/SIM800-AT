@@ -1,5 +1,5 @@
 
-# Copyright (c) 2021 Scene Connect Ltd & Connected Energy Technologies Ltd.
+# Copyright (c) 2023 Inclusive Energy Ltd.
 # SPDX-License-Identifier: Apache-2.0
 
 config SIM800_TCP_QUICKSEND

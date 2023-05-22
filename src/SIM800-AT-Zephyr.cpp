@@ -1,6 +1,6 @@
 /* SIM800_AT firmware
- * Copyright (c) 2016-2021 Connected Energy Technologies Ltd
- * (www.connectedenergy.net)
+ * Copyright (c) 2016-2023 Inclusive Energy Ltd
+ * (www.inclusive.energy)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.

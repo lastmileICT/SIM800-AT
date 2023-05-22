@@ -2,4 +2,4 @@
 
 zephyr_include_directories(src)
 
-target_sources(app PRIVATE src/SIM800-AT-Zephyr.cpp)
+target_sources(app PRIVATE src/SIM800-AT.cpp)
