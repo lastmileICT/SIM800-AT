@@ -419,7 +419,7 @@ int GPRS::setup_bearer(const char* apn, const char* user, const char* pass)
 
 int GPRS::enable_bearer(void)
 {
-    send_cmd("AT+SAPBR=1,1", 3500, "OK"); // Response time can be upto 85 seconds
+    send_cmd("AT+SAPBR=1,1", 85000, "OK"); // Response time can be upto 85 seconds
     if (ack_received) {
         return MODEM_RESPONSE_OK;
     }
@@ -578,7 +578,7 @@ int GPRS::enable_get_data_manually(void)
 {
     // CIPMUX=0 -> set single IP connection
     // CIPRXGET=1 -> poll for RX data.
-    send_cmd("AT+CIPMUX=0;+CIPRXGET=1", DEFAULT_TIMEOUT * 2, "OK");
+    send_cmd("AT+CIPMUX=0;+CIPRXGET=1", DEFAULT_TIMEOUT * 10, "OK");
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
