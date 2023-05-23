@@ -133,7 +133,7 @@ public:
     int* wdt_channel;
 
     GPRS(uint8_t *rx_buf, size_t rx_buf_size,
-            void (*feed_watchdog)(int), int* wdt_channel);
+            void (*feed_watchdog)(int) = NULL, int* wdt_channel = NULL);
 
     /** Set / reset the reception buffer. Ideally should be executed when no RX is in progress.
      *  @param buf Pointer to the buffer that will store the received UART data.
