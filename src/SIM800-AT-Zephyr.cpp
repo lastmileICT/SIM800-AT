@@ -48,13 +48,15 @@ int GPRS::ip_rx_data(void)
 
     /* Test for TCP data length still increasing */
     snprintf(cmd, sizeof(cmd), "AT+CIPRXGET=4");
-    while(tcp_packet_len != tcp_avail) {
-        tcp_packet_len = tcp_avail;
+
+    uint8_t retries = 0;
+    while((tcp_packet_len != tcp_avail) && (retries++ < 10)) {
         send_cmd(cmd, DEFAULT_TIMEOUT, "OK");
         // ACK string position varies between 2 and three characters
         // with mixed whitespace so we can't sscanf for it properly.
         char *ack_pos = strstr(resp_buf, "+CIPRXGET:");
         if (NULL != ack_pos) {
+            tcp_packet_len = tcp_avail;
             sscanf(ack_pos, "+CIPRXGET: 4,%hu", &tcp_avail);
         }
         k_sleep(K_MSEC(150));
