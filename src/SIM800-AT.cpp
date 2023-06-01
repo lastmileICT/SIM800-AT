@@ -561,7 +561,7 @@ int UARTmodem::enable_get_data_manually(void)
     return MODEM_RESPONSE_OK;
 }
 
-int UARTmodem::set_apn(const char* apn, const char* user, const char* pass)
+int UARTmodem::pdp_open(const char* apn, const char* user, const char* pass)
 {
     char cmd[64];
     snprintf(cmd, sizeof(cmd), "AT+CSTT=\"%s\",\"%s\",\"%s\"", apn, user, pass);
@@ -569,11 +569,7 @@ int UARTmodem::set_apn(const char* apn, const char* user, const char* pass)
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
-    return MODEM_RESPONSE_OK;
-}
 
-int UARTmodem::activate_gprs(void)
-{
     send_cmd("AT+CIICR", 1000, NULL); // Upto 85 seconds
     if ((NULL != strstr(resp_buf, "OK")) ||
         (NULL != strstr(resp_buf, "ERROR"))) {
@@ -670,7 +666,7 @@ int SIM800::ip_rx_data(void)
     return tcp_packet_len;
 }
 
-int UARTmodem::close_pdp_context(void)
+int UARTmodem::pdp_close(void)
 {
     // Close the GPRS PDP context.
     send_cmd("AT+CIPSHUT", 65000, "SHUT OK");

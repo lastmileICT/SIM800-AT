@@ -121,24 +121,15 @@ public:
     int attach_gprs(void);
 
     /**
-     * Start Task and Set APN, USER NAME, PASSWORD.
+     * Start task setting APN and open a PDP session.
      * The function sends the AT command "AT+CSTT=apn,user,pass" to the GSM modem.
-     * @param apn APN details
-     * @param user User ID
-     * @param pass Password
-     * @return Returns -1 if invalid or no response from the modem, 0 if success.
-     */
-    int set_apn(const char* apn, const char* user, const char* pass);
-
-    /**
-     * Bring Up Wireless Connection with GPRS.
      * The function sends the AT commands "AT+CIICR" to the GSM modem.
      * If this was setup already, the modem will respond with "ERROR", and this
      * is actually not an error.
      * @return Returns 0 if the modem responds with "OK" or "ERROR".
      * Returns -1 if no response or invalid.
      */
-    int activate_gprs(void);
+    int pdp_open(const char* apn, const char* user, const char* pass);
 
     /**
      * Get Local IP address, if the PDP context has been activated before.
@@ -222,12 +213,12 @@ public:
     int check_bearer_status(void);
 
     /**
-     * Closes the GPRS PDP context.
+     * Closes the PDP session.
      * The function sends the AT command "AT+CIPSHUT" to the GSM modem.
      * @return Returns -1 on receiving an invalid response.
      * Returns 0 if SHUT OK received from the modem.
      */
-    int close_pdp_context(void);
+    int pdp_close(void);
 
     void sleep(void);
     void powerdown(void);
