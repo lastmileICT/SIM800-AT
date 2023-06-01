@@ -15,8 +15,8 @@
  * limitations under the License.
  */
 
-#ifndef __GPRS_H__
-#define __GPRS_H__
+#ifndef __MODEM_H__
+#define __MODEM_H__
 
 #ifndef UNIT_TEST
 
@@ -36,18 +36,18 @@
 #define MODEM_CME_ERROR -2
 
 
-/** GPRS class.
- *  Used for mobile communication. attention that GPRS module communicate with MCU in serial protocol
+/** UARTmodem class.
+ *  Used for mobile communication.
  */
-class GPRS
+class UARTmodem
 {
 public:
     char *resp_buf;
     size_t resp_buf_len;
     size_t tcp_send_len;
 
-    const struct device *gsm_dev;
-    USART_TypeDef *UARTGSM;
+    const struct device *modem_dev;
+    USART_TypeDef *UART_PERIPH;
     char ack_message[12];
     size_t len_ack;
     int time_out = DEFAULT_TIMEOUT;
@@ -58,7 +58,7 @@ public:
     void (*feed_watchdog)(int);
     int* wdt_channel;
 
-    GPRS(uint8_t *rx_buf, size_t rx_buf_size,
+    UARTmodem(uint8_t *rx_buf, size_t rx_buf_size,
             void (*feed_watchdog)(int) = NULL, int* wdt_channel = NULL);
 
     /** Set / reset the reception buffer. Ideally should be executed when no RX is in progress.
@@ -179,19 +179,6 @@ public:
     int disable_bearer(void);
     int send_tcp_data(const void *data, size_t len);
     int reset(void);
-    int init_sms(void);
-    int check_new_sms(void);
-    int get_sms(int index);
-    int send_get_request(char* url);
-    int bt_power_on(void);
-    int accept_bt(void);
-    int accept_bt_pair(void);
-    int send_bt_data(unsigned char *data, int len);
-    int check_bt_host(const char *host);
-    int change_bt_host(const char* host);
-    int send_sms(char *number, char *data);
-    int call_up(char *number);
-    bool get_location(float *latitude, float *longitude);
 
     /**
      * Get the currently selected network operator.
@@ -212,10 +199,10 @@ public:
     int select_network(const char *network);
 
     /**
-     * Requests IP data by sending the command "AT+CIPRXGET=2,x" to the modem.
+     * Requests IP data using CIPRXGET.
      * @return Returns the size of TCP/UDP data.
      */
-    int ip_rx_data(void);
+    virtual int ip_rx_data(void) = 0;
 
     /**
      * Strip the modem response from the start of a buffer and move the rest
@@ -244,8 +231,6 @@ public:
 
     void sleep(void);
     void powerdown(void);
-    int delete_sms(int index);
-    int answer(void);
 
     /**
      * This function sends the command (AT+COPS=?) for searching the available networks.
@@ -358,7 +343,7 @@ public:
      */
     int ftp_end_session(void);
 
-private:
+protected:
     /**
      * Function to send the AT commands to SIM800 module.
      * UART transmission is still done using polling method.
@@ -378,10 +363,38 @@ private:
      */
     void send_cmd(const char *cmd, size_t timeout, const char *ack,
                   bool no_wait=false);
-
+private:
     void clear_buffer(void);
+};
+
+class SIM800 : public UARTmodem {
+public:
+    SIM800(uint8_t *rx_buf, size_t rx_buf_size,
+            void (*feed_watchdog)(int) = NULL, int* wdt_channel = NULL);
+
+    /**
+     * Requests IP data by sending the command "AT+CIPRXGET=2,x" to the modem.
+     * @return Returns the size of TCP/UDP data.
+     */
+    int ip_rx_data(void);
+
+private:
+};
+
+class A7672 : public UARTmodem {
+public:
+    A7672(uint8_t *rx_buf, size_t rx_buf_size,
+            void (*feed_watchdog)(int) = NULL, int* wdt_channel = NULL);
+
+    /**
+     * Requests IP data by sending the command "AT+CIPRXGET=2,x" to the modem.
+     * @return Returns the size of TCP/UDP data.
+     */
+    int ip_rx_data(void);
+
+private:
 };
 
 #endif /* UNIT_TEST */
 
-#endif /* __GPRS_H__ */
+#endif /* __MODEM_H__ */
