@@ -55,11 +55,8 @@ public:
     uint16_t actual_ack_num_bytes;
     volatile size_t current_index = 0;
     volatile bool ack_received = false;
-    void (*feed_watchdog)(int);
-    int* wdt_channel;
 
-    UARTmodem(uint8_t *rx_buf, size_t rx_buf_size,
-            void (*feed_watchdog)(int) = NULL, int* wdt_channel = NULL);
+    UARTmodem(uint8_t *rx_buf, size_t rx_buf_size);
 
     /** Set / reset the reception buffer. Ideally should be executed when no RX is in progress.
      *  @param buf Pointer to the buffer that will store the received UART data.
@@ -360,8 +357,7 @@ private:
 
 class SIM800 : public UARTmodem {
 public:
-    SIM800(uint8_t *rx_buf, size_t rx_buf_size,
-            void (*feed_watchdog)(int) = NULL, int* wdt_channel = NULL);
+    SIM800(uint8_t *rx_buf, size_t rx_buf_size);
 
     /**
      * Requests IP data by sending the command "AT+CIPRXGET=2,x" to the modem.
@@ -374,8 +370,7 @@ private:
 
 class A7672 : public UARTmodem {
 public:
-    A7672(uint8_t *rx_buf, size_t rx_buf_size,
-            void (*feed_watchdog)(int) = NULL, int* wdt_channel = NULL);
+    A7672(uint8_t *rx_buf, size_t rx_buf_size);
 
     /**
      * Requests IP data by sending the command "AT+CIPRXGET=2,x" to the modem.

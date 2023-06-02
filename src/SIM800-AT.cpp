@@ -86,10 +86,7 @@ void irq_handler(const struct device *dev, void* user_data)
 }
 
 // Base constructor sets up basic requirements for UART
-UARTmodem::UARTmodem(uint8_t *rx_buf, size_t rx_buf_size,
-            void (*_feed_watchdog)(int), int* _wdt_channel)
-            : feed_watchdog{_feed_watchdog}, wdt_channel{_wdt_channel}
-
+UARTmodem::UARTmodem(uint8_t *rx_buf, size_t rx_buf_size)
 {
     UART_PERIPH = (USART_TypeDef *)(UART_GSM_BASE_ADDR);
     modem_dev = device_get_binding(UART_GSM);
@@ -98,17 +95,15 @@ UARTmodem::UARTmodem(uint8_t *rx_buf, size_t rx_buf_size,
 }
 
 // Inherited constructor calls base constructor
-SIM800::SIM800(uint8_t *rx_buf, size_t rx_buf_size,
-            void (*_feed_watchdog)(int), int* _wdt_channel)
-            : UARTmodem(rx_buf, rx_buf_size, _feed_watchdog, _wdt_channel)
+SIM800::SIM800(uint8_t *rx_buf, size_t rx_buf_size)
+            : UARTmodem(rx_buf, rx_buf_size)
 
 { // no special construction
 }
 
 // Inherited constructor calls base constructor
-A7672::A7672(uint8_t *rx_buf, size_t rx_buf_size,
-            void (*_feed_watchdog)(int), int* _wdt_channel)
-            : UARTmodem(rx_buf, rx_buf_size, _feed_watchdog, _wdt_channel)
+A7672::A7672(uint8_t *rx_buf, size_t rx_buf_size)
+            : UARTmodem(rx_buf, rx_buf_size)
 
 { // no special construction
 }
@@ -156,9 +151,6 @@ void UARTmodem::send_cmd(const char *cmd, size_t timeout, const char *ack,
         // Sleep in 20ms slices until we get the ack back.
         int wait_count = timeout / 20;
         while (wait_count--) {
-            if(wdt_channel != NULL) {
-                feed_watchdog(*wdt_channel);
-            }
             k_sleep(K_MSEC(20));
             if (ack_received){
                 break;
