@@ -48,7 +48,7 @@ public:
 
     const struct device *modem_dev;
     USART_TypeDef *UART_PERIPH;
-    char ack_message[12];
+    char ack_message[16];
     size_t len_ack;
     int time_out = DEFAULT_TIMEOUT;
     uint32_t time_initial;
@@ -63,35 +63,22 @@ public:
      *  @param size_buf Size of the UART buffer
      */
     void set_rx_buf(uint8_t *buf, size_t len);
-    int init(void);
+    int init_common();
+    virtual int init(void) = 0;
     int test_uart(); // simple AT -> OK serial comm test
     int wakeup(void);
     int check_pin(void);
-    int set_pin(const char* pin);
+    virtual int set_pin(const char* pin) = 0;
     int check_ssl_cert(const char *filename, int filesize);
     int load_ssl(const char *filename, const char *cert, int filesize);
     int ssl_set_cert(const char *filename);
-    int enable_ssl(void);
-    int disable_ssl(void);
-    int enable_get_data_manually(void);
-    int setup_clock(void);
-    /**
-     * Bearer Settings for Applications Based on IP. This configures the Access Point Name (APN)
-     * parameters for internet access. The function sends the AT command "AT+SAPBR=3,......"
-     * to the GSM modem.
-     * @param apn APN for the internet gateway
-     * @param user User ID for APN
-     * @param pass Password for APN
-     * @return Returns -1 if invalid or no response from the modem
-     */
+    virtual int enable_ssl(void) = 0;
+    virtual int disable_ssl(void) = 0;
+    virtual int enable_get_data_manually(void) = 0;
+    virtual int setup_clock(void) = 0;
 
-    int setup_bearer(const char* apn, const char* user, const char* pass);
-    /**
-     * Enables/opens the bearer, provided the settings have been done.
-     * The function sends the AT command "AT+SAPBR=1,.." to the GSM modem.
-     * @return Returns -1 if invalid or no response from the modem
-     */
-    int enable_bearer(void);
+    virtual int setup_bearer(const char* apn, const char* user, const char* pass) = 0;
+    virtual int enable_bearer(void) = 0;
 
     /**
      * Check GSM registration.
@@ -107,6 +94,8 @@ public:
      */
     int network_registration_gprs(void);
 
+    virtual int network_registration_lte() = 0;
+
     /**
      * The function sends the AT command "AT+CSQ" to the GSM modem and gets
      * the signal strength value (RSSI) as the response.
@@ -114,58 +103,21 @@ public:
      */
     int check_signal_strength(void);
 
+    virtual int get_connection_info() = 0;
     uint32_t get_time(void);
     int attach_gprs(void);
 
-    /**
-     * Start task setting APN and open a PDP session.
-     * The function sends the AT command "AT+CSTT=apn,user,pass" to the GSM modem.
-     * The function sends the AT commands "AT+CIICR" to the GSM modem.
-     * If this was setup already, the modem will respond with "ERROR", and this
-     * is actually not an error.
-     * @return Returns 0 if the modem responds with "OK" or "ERROR".
-     * Returns -1 if no response or invalid.
-     */
-    int pdp_open(const char* apn, const char* user, const char* pass);
+    virtual int pdp_open(const char* apn, const char* user, const char* pass) = 0;
 
-    /**
-     * Get Local IP address, if the PDP context has been activated before.
-     * The function sends the AT commands "AT+CIFSR" to the GSM modem.
-     * @return Returns 0 if the modem response is a valid IP address. Returns -1 if the GSM modem
-     * responds with an "ERROR". This can happen if the PDP context has not been activated already.
-     */
-    int get_ip(void);
+    virtual int get_ip(void) = 0;
 
-    /**
-     * Opens TCP connection sending the AT command "AT+CIPSTART=TCP,domain,port" to the GSM modem.
-     * Expects a "CONNECT OK" or "ALREADY CONNECT" from the modem on successful connection.
-     * @param domain  Remote server domain name
-     * @param port Remote server port
-     * @return Returns -1 if invalid or no response from the modem
-     */
-    int connect_tcp(const char* domain, const char* port);
+    virtual int connect_tcp(const char* domain, const char* port) = 0;
 
-    /**
-     * Closes the TCP connection.
-     * The function sends the AT command "AT+CIPCLOSE=0" to the GSM modem.
-     * The modem may return ERROR if TCP is not already opened.
-     * @return Returns -1 on receiving an invalid response.
-     * Returns 0 if CLOSE OK or ERROR received from the modem.
-     */
-    int close_tcp(void);
-
-    /**
-     * Quickly closes the TCP connection.
-     * The function sends the AT command "AT+CIPCLOSE=1" to the GSM modem.
-     * The modem may return ERROR if TCP is not already opened.
-     * @return Returns -1 on receiving an invalid response.
-     * Returns 0 if CLOSE OK or ERROR received from the modem.
-     */
-    int close_tcp_quick(void);
+    virtual int close_tcp() = 0;
 
     int detach_gprs(void);
-    int disable_bearer(void);
-    int send_tcp_data(const void *data, size_t len);
+    virtual int disable_bearer(void) = 0;
+    virtual int send_tcp_data(const void *data, size_t len) = 0;
     int reset(void);
 
     /**
@@ -192,13 +144,7 @@ public:
      */
     virtual int ip_rx_data(void) = 0;
 
-    /**
-     * Strip the modem response from the start of a buffer and move the rest
-     * of the contents to the start of the buffer
-     * @param count The number of bytes after the strip to move to start
-     * @return The number of bytes stripped
-     */
-    size_t strip_modem_response(size_t count);
+    virtual size_t strip_modem_response(size_t count) = 0;
 
     /**
      * Check the current bearer status sending the command "AT+SAPBR=2,1"
@@ -209,13 +155,7 @@ public:
      */
     int check_bearer_status(void);
 
-    /**
-     * Closes the PDP session.
-     * The function sends the AT command "AT+CIPSHUT" to the GSM modem.
-     * @return Returns -1 on receiving an invalid response.
-     * Returns 0 if SHUT OK received from the modem.
-     */
-    int pdp_close(void);
+    virtual int pdp_close(void) = 0;
 
     void sleep(void);
     void powerdown(void);
@@ -240,16 +180,8 @@ public:
      */
     void prepare_for_rx(size_t timeout, const char *ack);
 
-    /**
-     * Implements FTP session initialisation to be used by FTPGETTOFS as well as FTPEXTGET.
-     * @param server FTP Server Name
-     * @param user FTP Server User Name
-     * @param pw FTP Server Password
-     * @param file_name The file name to be read
-     * @param file_path FTP Server File Path
-     */
-    int ftp_init(const char *server, const char *user, const char *pw, const char *file_name,
-                    const char *file_path);
+    virtual int ftp_init(const char *server, const char *user, const char *pw,
+                         const char *file_name, const char *file_path) = 0;
 
     /**
      * Remove the existing file in the SIM800 flash.
@@ -285,51 +217,16 @@ public:
      */
     int read_ftp_file(const char *file_name, int length, int offset);
 
-    /**
-     * Implements the "FTP extend get" functionality to download a file from an FTP server using
-     * the command AT+FTPEXTGET. The final response from the SIM800 modem will be as below,
-     * +FTPEXTGET: 1,0
-     * The downloaded file will be saved to the SIM800 RAM.
-     * The final response from the modem can take nearly 1 minute, and hence,
-     * the calling function will have to wait for this.
-     * @param server FTP Server Name
-     * @param user FTP Server User Name
-     * @param pw FTP Server Password
-     * @param file_name The file name to be read
-     * @param file_path FTP Server File Path
-     * @return Returns 0 on success, and -1 on receiving an invalid response or error.
-     */
-    int ftp_get_to_ram(const char *server, const char *user, const char *pw, const char *file_name,
-                    const char *file_path);
 
-    /**
-     * Read the size of the downloaded file in the SIM800 RAM after a FTPEXTGET request.
-     * A command "AT+FTPEXTGET?" to the modem will be responded with, for example
-     * "+FTPEXTGET: 1,108944" which contains the file size info.
-     * @return Returns the file size if success or -1 on receiving an invalid response.
-     */
-    int ftp_get_ram_filesize(void);
+    virtual int ftp_get_ota(const char *server, const char *user,
+                            const char *pw, const char *file_name,
+                            const char *file_path) = 0;
 
-    /**
-     * Read bytes from the downloaded file in the SIM800 RAM.
-     * Implements the FTPEXTGET file read from the SIM800 modem using the command,
-     * for example, AT+FTPEXTGET=3,0,128.
-     * The read bytes will be available in the buffer "resp_buf" after a successful read operation.
-     * The wait time after sending the read command is configurable at compile-time
-     * (CONFIG_FTP_READ_WAIT).
-     * A response for the request AT+FTPEXTGET=3,0,128 will always start with
-     * 2 bytes 0x0D 0x0A followed by "+FTPEXTGET: 3,128" and then 2 additional bytes 0x0D 0x0A.
-     * Then the actual bytes come and then ends with 6 bytes (0x0d 0x0a 0x4f 0x4b 0x0d 0x0a).
-     * These additional bytes needs to be ignored while processing.
-     * @param length Number of bytes to be read.
-     * @param offset The starting index to read from.
-     */
-    int ftp_read_from_ram(int length, int offset);
+    virtual int ftp_ota_filesize(void) = 0;
 
-    /**
-     * Ends the FTPEXTGET session by sending the command, "AT+FTPEXTGET=0"
-     */
-    int ftp_end_session(void);
+    virtual int ftp_read_ota(int length, int offset) = 0;
+
+    virtual int ftp_end_session(void) = 0;
 
 protected:
     /**
@@ -351,6 +248,7 @@ protected:
      */
     void send_cmd(const char *cmd, size_t timeout, const char *ack,
                   bool no_wait=false);
+
 private:
     void clear_buffer(void);
 };
@@ -359,26 +257,325 @@ class SIM800 : public UARTmodem {
 public:
     SIM800(uint8_t *rx_buf, size_t rx_buf_size);
 
+    int init();
+    int set_pin(const char* pin);
+    int network_registration_lte();
+    int get_connection_info();
+
+    /**
+     * Bearer Settings for Applications Based on IP. This configures the Access Point Name (APN)
+     * parameters for internet access. The function sends the AT command "AT+SAPBR=3,......"
+     * to the GSM modem.
+     * @param apn APN for the internet gateway
+     * @param user User ID for APN
+     * @param pass Password for APN
+     * @return Returns -1 if invalid or no response from the modem
+     */
+    int setup_bearer(const char* apn, const char* user, const char* pass);
+
+    /**
+     * Enables/opens the bearer, provided the settings have been done.
+     * The function sends the AT command "AT+SAPBR=1,.." to the GSM modem.
+     * @return Returns -1 if invalid or no response from the modem
+     */
+    int enable_bearer(void);
+
+    int disable_bearer(void);
+
+    int setup_clock(void);
+
+    int enable_get_data_manually(void);
+
+    int enable_ssl(void);
+
+    int disable_ssl(void);
+
+    /**
+     * Start task setting APN and open a PDP session.
+     * The function sends the AT command "AT+CSTT=apn,user,pass" to the GSM modem.
+     * The function sends the AT commands "AT+CIICR" to the GSM modem.
+     * If this was setup already, the modem will respond with "ERROR", and this
+     * is actually not an error.
+     * @return Returns 0 if the modem responds with "OK" or "ERROR".
+     * Returns -1 if no response or invalid.
+     */
+    int pdp_open(const char* apn, const char* user, const char* pass);
+
+    /**
+     * Closes the PDP session.
+     * The function sends the AT command "AT+CIPSHUT" to the GSM modem.
+     * @return Returns -1 on receiving an invalid response.
+     * Returns 0 if SHUT OK received from the modem.
+     */
+    int pdp_close(void);
+
+    /**
+     * Get Local IP address, if the PDP context has been activated before.
+     * The function sends the AT commands "AT+CIFSR" to the GSM modem.
+     * @return Returns 0 if the modem response is a valid IP address. Returns -1 if the GSM modem
+     * responds with an "ERROR". This can happen if the PDP context has not been activated already.
+     */
+    int get_ip(void);
+
+    /**
+     * Opens TCP connection sending the AT command "AT+CIPSTART=TCP,domain,port" to the GSM modem.
+     * Expects a "CONNECT OK" or "ALREADY CONNECT" from the modem on successful connection.
+     * @param domain  Remote server domain name
+     * @param port Remote server port
+     * @return Returns -1 if invalid or no response from the modem
+     */
+    int connect_tcp(const char* domain, const char* port);
+
+    /**
+     * Closes the TCP connection.
+     * The function sends the AT command "AT+CIPCLOSE=1" to the GSM modem.
+     * The modem may return ERROR if TCP is not already opened.
+     * @return Returns -1 on receiving an invalid response.
+     * Returns 0 if CLOSE OK or ERROR received from the modem.
+     */
+    int close_tcp();
+
+    int send_tcp_data(const void *data, size_t len);
+
     /**
      * Requests IP data by sending the command "AT+CIPRXGET=2,x" to the modem.
      * @return Returns the size of TCP/UDP data.
      */
     int ip_rx_data(void);
 
+    /**
+     * Initialises an FTP session and declares the location of the file to be
+     * downloaded.
+     * @param server FTP Server Name
+     * @param user FTP Server User Name
+     * @param pw FTP Server Password
+     * @param file_name The file name to be read
+     * @param file_path FTP Server File Path
+     */
+    int ftp_init(const char *server, const char *user, const char *pw,
+                         const char *file_name, const char *file_path);
+
+    /**
+     * Implements the "FTP extend get" functionality to download a file from an FTP server using
+     * the command AT+FTPEXTGET. The final response from the SIM800 modem will be +FTPEXTGET: 1,0
+     * The downloaded file will be saved to the SIM800 RAM.
+     * The final response from the modem can take nearly 1 minute, and hence,
+     * the calling function will have to wait for this.
+     * @param server FTP Server Name
+     * @param user FTP Server User Name
+     * @param pw FTP Server Password
+     * @param file_name The file name to be read
+     * @param file_path FTP Server File Path
+     * @return Returns 0 on success, and -1 on receiving an invalid response or error.
+     */
+    int ftp_get_ota(const char *server, const char *user, const char *pw,
+                    const char *file_name, const char *file_path);
+
+    /**
+     * Search for FTP download complete code "+FTPEXTGET: 1,0" and associated errors
+     * @return Returns 0 on success, 1 if download still waiting, -1 if error.
+     */
+    int ftp_dl_cplt(const char *file_name);
+
+    /**
+     * Read the size of the downloaded file in the SIM800 RAM after a FTPEXTGET request.
+     * A command "AT+FTPEXTGET?" to the modem will be responded with, for example
+     * "+FTPEXTGET: 1,108944" which contains the file size info.
+     * @return Returns the file size if success or -1 on receiving an invalid response.
+     */
+    int ftp_ota_filesize(void);
+
+    /**
+     * Read bytes from the downloaded file in the SIM800 RAM.
+     * Implements the FTPEXTGET file read from the SIM800 modem using the command,
+     * for example, AT+FTPEXTGET=3,0,128.
+     * The read bytes will be available in the buffer "resp_buf" after a successful read operation.
+     * The wait time after sending the read command is configurable at compile-time
+     * (CONFIG_FTP_READ_WAIT).
+     * A response for the request AT+FTPEXTGET=3,0,128 will always start with
+     * 2 bytes 0x0D 0x0A followed by "+FTPEXTGET: 3,128" and then 2 additional bytes 0x0D 0x0A.
+     * Then the actual bytes come and then ends with 6 bytes (0x0d 0x0a 0x4f 0x4b 0x0d 0x0a).
+     * These additional bytes needs to be ignored while processing.
+     * @param length Number of bytes to be read.
+     * @param offset The starting index to read from.
+     */
+    int ftp_read_ota(int length, int offset);
+
+    /**
+     * Ends the FTPEXTGET session by sending the command, "AT+FTPEXTGET=0"
+     */
+    int ftp_end_session(void);
+
 private:
+    /**
+     * Strip the modem response from the start of a buffer and move the rest
+     * of the contents to the start of the buffer
+     * @param count The number of bytes after the strip to move to start
+     * @return The number of bytes stripped
+     */
+    size_t strip_modem_response(size_t count);
 };
 
 class A7672 : public UARTmodem {
 public:
     A7672(uint8_t *rx_buf, size_t rx_buf_size);
 
+    int init();
+    int set_pin(const char* pin);
+    int network_registration_lte();
+    int get_connection_info();
+
+    /**
+     * Bearer Settings for Applications Based on IP. This configures the Access Point Name (APN)
+     * parameters for internet access. The function sends the AT command "AT+CGDCONT..."
+     * to the modem.
+     * @param apn APN for the internet gateway
+     * @param user User ID for APN
+     * @param pass Password for APN
+     * @return Returns -1 if invalid or no response from the modem
+     */
+    int setup_bearer(const char* apn, const char* user, const char* pass);
+
+    /**
+     * Enables/opens the bearer, provided the settings have been done.
+     * The function sends the AT command "AT+CGACT=1,1" to the modem.
+     * @return Returns -1 if invalid or no response from the modem
+     */
+    int enable_bearer(void);
+
+    int disable_bearer(void);
+
+    int setup_clock(void);
+
+    int enable_get_data_manually(void);
+
+    int enable_ssl(void);
+
+    int disable_ssl(void);
+
+    /**
+     * Start a PDP session.
+     * The function sends the AT command "AT+CCHSTART"
+     * Parameters are unused and therefore optional for instances of this class
+     * @return Returns 0 if the modem responds with "OK" or "ERROR".
+     * Returns -1 if no response or invalid.
+     */
+    int pdp_open(const char* apn, const char* user, const char* pass);
+
+    /**
+     * Closes the PDP session.
+     * The function sends the AT command "AT+CCHSTOP" to the modem.
+     * @return Returns -1 on receiving an invalid response.
+     * Returns 0 if OK received from the modem.
+     */
+    int pdp_close(void);
+
+    /**
+     * Get Local IP address, if the PDP context has been activated before.
+     * The function sends the AT commands "AT+IPADDR" to the modem.
+     * @return Returns 0 if the modem response is a valid IP address. Returns -1 if the modem
+     * responds with an "ERROR". This can happen if the PDP context has not been activated already.
+     */
+    int get_ip(void);
+
+    /**
+     * Opens TCP connection sending the AT command
+     * "AT+CCHOPEN=session,domain,port,ssl" to the modem.
+     * Expects a "+CCHOPEN: session,0" from the modem on successful connection.
+     * @param domain  Remote server domain name
+     * @param port Remote server port
+     * @return Returns -1 if invalid or no response from the modem
+     */
+    int connect_tcp(const char* domain, const char* port);
+
+    /**
+     * Closes the TCP connection.
+     * The function sends the AT command "AT+CCHCLOSE=session" to the modem.
+     * The modem may return ERROR if TCP is not already opened.
+     * @return Returns -1 on receiving an invalid response or error.
+     * Returns 0 if OK received from the modem.
+     */
+    int close_tcp();
+
+    int send_tcp_data(const void *data, size_t len);
+
     /**
      * Requests IP data by sending the command "AT+CIPRXGET=2,x" to the modem.
      * @return Returns the size of TCP/UDP data.
      */
     int ip_rx_data(void);
 
+    /**
+     * Initialises an FTP session and connects to the indicated server
+     * using supplied credentials
+     * @param server FTP Server Name
+     * @param user FTP Server User Name
+     * @param pw FTP Server Password
+     * @param file_name The file name to be read
+     * @param file_path FTP Server File Path
+     */
+    int ftp_init(const char *server, const char *user, const char *pw,
+                         const char *file_name, const char *file_path);
+
+    /**
+     * Implements the "FTP get to module" functionality to download a file
+     * from an FTP server using the command AT+CFTPSGETFILE. The final response
+     * from the modem will be +CFTPSGETFILE: 0
+     * The downloaded file will be saved to the root of the modem file system.
+     * The final response from the modem could take a while depending on signal
+     * strength, so the calling function will have to wait for this (5-90sec).
+     * @param server FTP Server Name
+     * @param user FTP Server User Name
+     * @param pw FTP Server Password
+     * @param file_name The file name to be read
+     * @param file_path FTP Server File Path
+     * @return Returns 0 on success, and -1 on receiving an invalid response or error.
+     */
+    int ftp_get_ota(const char *server, const char *user, const char *pw,
+                    const char *file_name, const char *file_path);
+
+    /**
+     * Search for FTP download complete code "+CFTPSGETFILE: 0" and associated errors
+     * Then rename the downloaded file to ota.txt
+     * @return Returns 0 on success, 1 if download still waiting, -1 if error.
+     */
+    int ftp_dl_cplt(const char *file_name);
+
+    /**
+     * Read the size of the file ota.bin in A7672 after ftp_dl_cplt() renames a download.
+     * A command "AT+FSATTRI=<filepath>" to the modem will be responded with
+     * @return Returns the file size if success or -1 on receiving an invalid response.
+     */
+    int ftp_ota_filesize(void);
+
+    /**
+     * Read bytes from the downloaded file in the A7672 storage.
+     * Implements the CFTRANTX command.
+     * The read bytes will be available in the buffer "resp_buf" after a successful read operation.
+     * The wait time after sending the read command is configurable at compile-time
+     * (CONFIG_FTP_READ_WAIT).
+     * Modem response must be stripped and application can then read the
+     * buffer directly to obtain data.
+     * @param length Number of bytes to be read.
+     * @param offset The starting index to read from.
+     */
+    int ftp_read_ota(int length, int offset);
+
+    /**
+     * Ends the FTPEXTGET session by sending the command, "AT+FTPEXTGET=0"
+     */
+    int ftp_end_session(void);
+
 private:
+    bool use_ssl;
+
+    /**
+     * Strip the modem response from the start of a buffer and move the rest
+     * of the contents to the start of the buffer
+     * @param count The number of bytes after the strip to move to start
+     * @return The number of bytes stripped
+     */
+    size_t strip_modem_response(size_t count);
 };
 
 #endif /* UNIT_TEST */

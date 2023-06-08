@@ -110,12 +110,33 @@ A7672::A7672(uint8_t *rx_buf, size_t rx_buf_size)
 
 // Strips the modem response and moves the following count bytes to the
 // start of the response buffer. Returns count bytes stripped.
-size_t UARTmodem::strip_modem_response(size_t count)
+size_t SIM800::strip_modem_response(size_t count)
 {
     // The modem response is enclosed between two CR-LF
     // sequences. Look for the second occurence of CR LF starting from
     // position 3 in the buffer.
     for (size_t pos = 2; pos <= resp_buf_len - 2; pos++) {
+        if (resp_buf[pos] == 0x0D && resp_buf[pos + 1] == 0x0A) {
+            if ((count + pos) > resp_buf_len) {
+                count = resp_buf_len - pos;
+            }
+            memmove(resp_buf, resp_buf + pos + 2, count);
+            return pos + 2;
+        }
+    }
+    return 0;
+}
+
+// Strips the modem response and moves the following count bytes to the
+// start of the response buffer. Returns count bytes stripped.
+size_t A7672::strip_modem_response(size_t count)
+{
+    char *ack_pos = strstr(resp_buf, "+CCHRECV:");
+    size_t pos = (size_t)(ack_pos - resp_buf);
+
+    // The TCP data follows on the next line, so search
+    // for the new line sequence
+    for (; pos <= resp_buf_len - 2; pos++) {
         if (resp_buf[pos] == 0x0D && resp_buf[pos + 1] == 0x0A) {
             if ((count + pos) > resp_buf_len) {
                 count = resp_buf_len - pos;
@@ -137,6 +158,7 @@ void UARTmodem::set_rx_buf(uint8_t *buf, size_t len)
 void UARTmodem::send_cmd(const char *cmd, size_t timeout, const char *ack,
                     bool no_wait /*=false*/)
 {
+    //LOG_DBG("send: %s\n",cmd);
     for (int i = 0; i < (int)strlen(cmd); i++) {
         uart_poll_out(modem_dev, cmd[i]);
     }
@@ -197,8 +219,7 @@ int UARTmodem::test_uart()
     return MODEM_RESPONSE_ERROR;
 }
 
-int UARTmodem::init(void)
-{
+int UARTmodem::init_common() {
     // On higher baud rates, we might need to bang AT a number of
     // times, to train the modem's autobad feature.
     int i = 6;
@@ -221,10 +242,41 @@ int UARTmodem::init(void)
     // set, so we don't consider missing ACK an error.
     send_cmd("AT+CSCLK=0", DEFAULT_TIMEOUT, "OK");
 
+    return MODEM_RESPONSE_OK;
+}
+
+int SIM800::init(void)
+{
+
+    if (init_common() == MODEM_RESPONSE_ERROR) {
+        return MODEM_RESPONSE_ERROR;
+    }
+
     // Try to use the maximum GPRS class (12) for SIM800, in which 4 TX
     // slots and 4 RX slots are being used. We don't mind errors here.
     send_cmd("AT+CGMSCLASS=12", DEFAULT_TIMEOUT, "OK");
 
+    return MODEM_RESPONSE_OK;
+}
+
+int A7672::init(void)
+{
+    if (init_common() == MODEM_RESPONSE_ERROR) {
+        return MODEM_RESPONSE_ERROR;
+    }
+
+    // Turn off unsolicited return codes we dont care
+    // about
+    send_cmd("AT+CGEREP=0", 9000, "OK");
+    if (ack_received == false) {
+        return MODEM_RESPONSE_ERROR;
+    }
+    send_cmd("AT+CNMI=0", 9000, "OK");
+    if (ack_received == false) {
+        return MODEM_RESPONSE_ERROR;
+    }
+
+    // If the response is as expected
     return MODEM_RESPONSE_OK;
 }
 
@@ -236,7 +288,7 @@ int UARTmodem::wakeup(void)
 
 int UARTmodem::check_pin(void)
 {
-    send_cmd("AT+CPIN?", 3000, "PIN: READY");
+    send_cmd("AT+CPIN?", 9000, "PIN: READY");
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
@@ -244,10 +296,22 @@ int UARTmodem::check_pin(void)
     return MODEM_RESPONSE_OK;
 }
 
-int UARTmodem::set_pin(const char* pin)
+int SIM800::set_pin(const char* pin)
 {
     char cpin[20];
     sprintf(cpin, "AT+CPIN=\"%s\"", pin);
+    send_cmd(cpin, DEFAULT_TIMEOUT, "OK");
+    if (ack_received == false) {
+        return MODEM_RESPONSE_ERROR;
+    }
+    // If the response is as expected
+    return MODEM_RESPONSE_OK;
+}
+
+int A7672::set_pin(const char* pin)
+{
+    char cpin[20];
+    sprintf(cpin, "AT+CPIN=%s", pin);
     send_cmd(cpin, DEFAULT_TIMEOUT, "OK");
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
@@ -310,7 +374,7 @@ int UARTmodem::ssl_set_cert(const char *filename)
     return MODEM_RESPONSE_OK;
 }
 
-int UARTmodem::enable_ssl(void)
+int SIM800::enable_ssl(void)
 {
     send_cmd("AT+CIPSSL=1", DEFAULT_TIMEOUT, "OK");
     if (ack_received == false) {
@@ -321,7 +385,13 @@ int UARTmodem::enable_ssl(void)
     return MODEM_RESPONSE_OK;
 }
 
-int UARTmodem::disable_ssl(void)
+int A7672::enable_ssl(void)
+{
+    use_ssl = true;
+    return MODEM_RESPONSE_OK;
+}
+
+int SIM800::disable_ssl(void)
 {
     send_cmd("AT+CIPSSL=0", DEFAULT_TIMEOUT, "OK");
     if (ack_received == false) {
@@ -332,7 +402,13 @@ int UARTmodem::disable_ssl(void)
     return MODEM_RESPONSE_OK;
 }
 
-int UARTmodem::setup_clock(void)
+int A7672::disable_ssl(void)
+{
+    use_ssl = false;
+    return MODEM_RESPONSE_OK;
+}
+
+int SIM800::setup_clock(void)
 {
     send_cmd("AT+CNTPCID=1", DEFAULT_TIMEOUT, "OK");
     if (ack_received == false) {
@@ -353,7 +429,23 @@ int UARTmodem::setup_clock(void)
     return MODEM_RESPONSE_OK;
 }
 
-int UARTmodem::setup_bearer(const char* apn, const char* user, const char* pass)
+int A7672::setup_clock(void)
+{
+    send_cmd("AT+CNTP=\"time1.google.com\",0", DEFAULT_TIMEOUT, "OK");
+    if (ack_received == false) {
+        return MODEM_RESPONSE_ERROR;
+    }
+
+    send_cmd("AT+CNTP", 1500, "+CNTP: 0");
+    if (ack_received == false) {
+        return MODEM_RESPONSE_ERROR;
+    }
+
+    // If the response is as expected
+    return MODEM_RESPONSE_OK;
+}
+
+int SIM800::setup_bearer(const char* apn, const char* user, const char* pass)
 {
     // Set the type of Internet connection as GPRS
     char cmd[50];
@@ -385,7 +477,20 @@ int UARTmodem::setup_bearer(const char* apn, const char* user, const char* pass)
     return MODEM_RESPONSE_OK;
 }
 
-int UARTmodem::enable_bearer(void)
+int A7672::setup_bearer(const char* apn, const char* user, const char* pass) {
+
+    // Set connection ID 1 to use IP(v4) with APN address provided
+    char cmd[50];
+    snprintf(cmd, sizeof(cmd), "AT+CGDCONT=1,\"IP\",\"%s\"", apn);
+    send_cmd(cmd, 9000, "OK");
+
+    if (ack_received == false) {
+        return MODEM_RESPONSE_ERROR;
+    }
+    return MODEM_RESPONSE_OK;
+}
+
+int SIM800::enable_bearer(void)
 {
     send_cmd("AT+SAPBR=1,1", 85000, "OK"); // Response time can be upto 85 seconds
     if (ack_received) {
@@ -399,6 +504,20 @@ int UARTmodem::enable_bearer(void)
         }
     }
     // An actual error response received or no response yet
+    return MODEM_RESPONSE_ERROR;
+}
+
+int A7672::enable_bearer(void)
+{
+    // Activate PDP context for connection ID 1
+    // NOTE: this is automatic on LTE networks
+    // but is retained for GSM
+    send_cmd("AT+CGACT=1,1", 9000, "OK");
+    if (ack_received) {
+        return MODEM_RESPONSE_OK;
+    }
+
+    // Error or no response
     return MODEM_RESPONSE_ERROR;
 }
 
@@ -434,8 +553,12 @@ int UARTmodem::check_bearer_status(void)
 
 int UARTmodem::get_active_network(void)
 {
-    send_cmd("AT+COPS?", DEFAULT_TIMEOUT, NULL);
-    if ((NULL != strstr(resp_buf, "OK"))) {
+    // Ensure network format is long alphanumeric name
+    send_cmd("AT+COPS=3,0", DEFAULT_TIMEOUT, "OK");
+
+    // Query the current network name
+    send_cmd("AT+COPS?", DEFAULT_TIMEOUT, "OK");
+    if (ack_received) {
         return MODEM_RESPONSE_OK;
     }
     // Invalid or no response
@@ -486,15 +609,32 @@ int UARTmodem::network_registration_gprs(void)
     return MODEM_RESPONSE_ERROR;
 }
 
+int SIM800::network_registration_lte(void)
+{
+    // No LTE functionality
+    return MODEM_RESPONSE_ERROR;
+}
+
+int A7672::network_registration_lte(void)
+{
+    send_cmd("AT+CEGREG?", DEFAULT_TIMEOUT, NULL);
+    if ((NULL != strstr(resp_buf, "+CGREG: 0,1")) ||
+        (NULL != strstr(resp_buf, "+CGREG: 0,5"))) {
+        return MODEM_RESPONSE_OK;
+    }
+    // Not registered yet
+    return MODEM_RESPONSE_ERROR;
+}
+
 int UARTmodem::check_signal_strength(void)
 {
     int value = 0;
-    send_cmd("AT+CSQ", DEFAULT_TIMEOUT, NULL);
-    if (0 != strlen(resp_buf)) {
+    send_cmd("AT+CSQ", 9000, "OK");
+    if (ack_received) {
         // Extract the integer value from the received string.
         sscanf(resp_buf, " +CSQ: %d,", &value);
         int rssi = (2*value - 113);
-        if ((rssi >= 0) || (rssi < -155)) {
+        if ((rssi >= 0) || (rssi < -115)) {
             return MODEM_RESPONSE_ERROR;
         }
         return rssi;
@@ -502,10 +642,23 @@ int UARTmodem::check_signal_strength(void)
     return MODEM_RESPONSE_ERROR; // If no response
 }
 
+int SIM800::get_connection_info() {
+    // No info to get
+    return MODEM_RESPONSE_ERROR;
+}
+
+int A7672::get_connection_info() {
+    send_cmd("AT+CPSI?", 9000, "OK");
+    if (ack_received == false) {
+        return MODEM_RESPONSE_ERROR;
+    }
+    return MODEM_RESPONSE_OK;
+}
+
 uint32_t UARTmodem::get_time(void)
 {
-    send_cmd("AT+CCLK?", DEFAULT_TIMEOUT, NULL);
-    if (0 != strlen(resp_buf)) {
+    send_cmd("AT+CCLK?", 9000, "OK");
+    if (ack_received) {
         struct tm timeinfo;
         int timezone;
 
@@ -523,9 +676,6 @@ uint32_t UARTmodem::get_time(void)
             uint32_t timestamp = mktime(&timeinfo); // - timezone * 15 * 60;
             return timestamp;
         }
-        else {
-            return MODEM_RESPONSE_ERROR;
-        }
     }
     return MODEM_RESPONSE_ERROR; // If no response
 }
@@ -542,7 +692,7 @@ int UARTmodem::attach_gprs(void)
     return MODEM_RESPONSE_OK;
 }
 
-int UARTmodem::enable_get_data_manually(void)
+int SIM800::enable_get_data_manually(void)
 {
     // CIPMUX=0 -> set single IP connection
     // CIPRXGET=1 -> poll for RX data.
@@ -553,7 +703,22 @@ int UARTmodem::enable_get_data_manually(void)
     return MODEM_RESPONSE_OK;
 }
 
-int UARTmodem::pdp_open(const char* apn, const char* user, const char* pass)
+int A7672::enable_get_data_manually(void)
+{
+    send_cmd("AT+CCHMODE=0", 9000, "OK");
+    if (ack_received == false) {
+        return MODEM_RESPONSE_ERROR;
+    }
+
+    send_cmd("AT+CCHSET=1,1", 9000, "OK");
+    if (ack_received == false) {
+        return MODEM_RESPONSE_ERROR;
+    }
+
+    return MODEM_RESPONSE_OK;
+}
+
+int SIM800::pdp_open(const char* apn, const char* user, const char* pass)
 {
     char cmd[64];
     snprintf(cmd, sizeof(cmd), "AT+CSTT=\"%s\",\"%s\",\"%s\"", apn, user, pass);
@@ -572,7 +737,30 @@ int UARTmodem::pdp_open(const char* apn, const char* user, const char* pass)
     return MODEM_RESPONSE_ERROR;
 }
 
-int UARTmodem::get_ip(void)
+int A7672::pdp_open(const char* apn, const char* user, const char* pass)
+{
+    send_cmd("AT+CCHSTART", 120000, "+CCHSTART: 0"); // Upto 120 seconds
+    if (ack_received == false) {
+        //NB. can return ERROR if already open, unhelpful
+        return MODEM_RESPONSE_ERROR;
+    }
+return MODEM_RESPONSE_OK;
+    // Could actually take up to 120s but there are two positive
+    // ack's so we should search earlier than this. 120s could be
+    // reduced using AT+CIPTIMEOUT
+    // send_cmd("AT+NETOPEN", 9000, "OK");
+    // if ((NULL != strstr(resp_buf, "OK")) ||
+    //     (NULL != strstr(resp_buf, "already"))) {
+    //     // If the responses are as expected - OK or
+    //     // "already opened" received
+    //     return MODEM_RESPONSE_OK;
+    // }
+
+    // If no response or invalid
+    return MODEM_RESPONSE_ERROR;
+}
+
+int SIM800::get_ip(void)
 {
     // The AT command below returns either the IP address as a string
     // or ERROR if IP is not set. It's easier to search for ERROR than
@@ -596,13 +784,30 @@ int UARTmodem::get_ip(void)
     */
 }
 
-int UARTmodem::connect_tcp(const char *domain, const char *port)
+int A7672::get_ip(void)
+{
+    // AT+IPADDR shouldnt be used when using the SSL command set,
+    // as it requires AT+NETOPEN which is also not required
+    send_cmd("AT+CGPADDR=1", 9000, "OK");
+    char *ack_pos = strstr(resp_buf, "+CGPADDR: 1,");
+    int ip1, ip2, ip3, ip4 = 0;
+    if (NULL != ack_pos) {
+        sscanf(ack_pos, "+CGPADDR: 1,%d.%d.%d.%d", &ip1,&ip2,&ip3,&ip4);
+        LOG_DBG("IP: %d.%d.%d.%d", ip1,ip2,ip3,ip4);
+        if (!(ip1 == 0 && ip2 == 0 && ip3 == 0 && ip4 == 0)) {
+            return MODEM_RESPONSE_OK;
+        }
+    }
+    return MODEM_RESPONSE_ERROR;
+}
+
+int SIM800::connect_tcp(const char *domain, const char *port)
 {
     char cmd[100];
     this->tcp_send_len = 0;
     sprintf(cmd, "AT+CIPSTART=TCP,%s,%s", domain, port);
     send_cmd(cmd, 5000, "CONNECT OK");
-    if ((NULL != strstr(resp_buf, "CONNECT OK"))) {
+    if (ack_received) {
 #ifdef CONFIG_SIM800_TCP_QUICKSEND
         // If configured, set the SIM800 to support TCP quicksend - in
         // which the data stream length is not declared upfront, but
@@ -615,18 +820,30 @@ int UARTmodem::connect_tcp(const char *domain, const char *port)
     return MODEM_RESPONSE_ERROR; // Invalid
 }
 
+int A7672::connect_tcp(const char *domain, const char *port)
+{
+    char cmd[100];
+    this->tcp_send_len = 0;
+    uint8_t client_type = use_ssl ? 2 : 1;
+
+    // Use and check against session ID 0 (first parameter)
+    sprintf(cmd, "AT+CCHOPEN=0,\"%s\",%s,%d", domain, port, client_type);
+    send_cmd(cmd, 120000, "+CCHOPEN: 0,0");
+    if (ack_received) {
+        return MODEM_RESPONSE_OK;
+    }
+    return MODEM_RESPONSE_ERROR; // Invalid
+}
+
 int SIM800::ip_rx_data(void)
 {
     char cmd[19];
     uint16_t tcp_packet_len = 0;
     uint16_t tcp_avail = 65535;
 
-    /* Test for TCP data length still increasing */
-    snprintf(cmd, sizeof(cmd), "AT+CIPRXGET=4");
-
     uint8_t retries = 0;
     while((tcp_packet_len != tcp_avail) && (retries++ < 10)) {
-        send_cmd(cmd, DEFAULT_TIMEOUT, "OK");
+        send_cmd("AT+CIPRXGET=4", DEFAULT_TIMEOUT, "OK");
         // ACK string position varies between 2 and three characters
         // with mixed whitespace so we can't sscanf for it properly.
         char *ack_pos = strstr(resp_buf, "+CIPRXGET:");
@@ -658,7 +875,54 @@ int SIM800::ip_rx_data(void)
     return tcp_packet_len;
 }
 
-int UARTmodem::pdp_close(void)
+int A7672::ip_rx_data(void)
+{
+    char cmd[19];
+    uint16_t tcp_packet_len = 0;
+    uint16_t tcp_avail = 65535;
+
+    uint8_t retries = 0;
+    while((tcp_packet_len != tcp_avail) && (retries++ < 10)) {
+        send_cmd("AT+CCHRECV?", 120000, "OK");
+        // ACK string position varies between 2 and three characters
+        // with mixed whitespace so we can't sscanf for it properly.
+        char *ack_pos = strstr(resp_buf, "+CCHRECV:");
+        if (NULL != ack_pos) {
+            tcp_packet_len = tcp_avail;
+            sscanf(ack_pos, "+CCHRECV: LEN,%hu", &tcp_avail);
+        }
+        k_sleep(K_MSEC(150));
+    }
+    if (tcp_packet_len == 0) {
+        return 0;
+    }
+
+    // The length of output data can not exceed 2048 bytes at a time,
+    // based on A76xx Series_AT Command Manual.
+    // We assume the worst case transfer speed of 9.6kbps, equivalent
+    // to ~1byte/ms. We also append a margin of 55ms.
+    if (tcp_packet_len > 2048) {
+        tcp_packet_len = 2048;
+    }
+
+    // Recieve len bytes using session ID 0
+    snprintf(cmd, sizeof(cmd), "AT+CCHRECV=0,%d", tcp_packet_len);
+    int timeout = tcp_packet_len + 55;
+    send_cmd(cmd, timeout, NULL);
+
+    // If the expected response was not present
+    if (NULL == strstr(resp_buf, "+CCHRECV: DATA")) {
+        return 0;
+    }
+
+    size_t wasted = strip_modem_response(tcp_packet_len);
+    if (tcp_packet_len > (resp_buf_len - wasted)) {
+        tcp_packet_len = resp_buf_len - wasted;
+    }
+    return tcp_packet_len;
+}
+
+int SIM800::pdp_close(void)
 {
     // Close the GPRS PDP context.
     send_cmd("AT+CIPSHUT", 65000, "SHUT OK");
@@ -669,10 +933,22 @@ int UARTmodem::pdp_close(void)
     return MODEM_RESPONSE_OK;
 }
 
-int UARTmodem::close_tcp(void)
+int A7672::pdp_close(void)
+{
+    // Close the PDP context.
+    send_cmd("AT+CCHSTOP", 120000, "OK");
+    if (ack_received == false) {
+        return MODEM_RESPONSE_ERROR;
+    }
+    // If the response is as expected
+    return MODEM_RESPONSE_OK;
+}
+
+int SIM800::close_tcp()
 {
     this->tcp_send_len = 0;
-    send_cmd("AT+CIPCLOSE=0", DEFAULT_TIMEOUT, NULL);
+    // Use quick-close (first param) to close TCP
+    send_cmd("AT+CIPCLOSE=1", DEFAULT_TIMEOUT, NULL);
     if ((NULL != strstr(resp_buf, "CLOSE OK")) ||
         (NULL != strstr(resp_buf, "ERROR"))) { // If TCP not opened previously
         return MODEM_RESPONSE_OK;
@@ -680,13 +956,13 @@ int UARTmodem::close_tcp(void)
     return MODEM_RESPONSE_ERROR; // Invalid
 }
 
-int UARTmodem::close_tcp_quick(void)
+int A7672::close_tcp()
 {
-    // closes the TCP connection quickly
     this->tcp_send_len = 0;
-    send_cmd("AT+CIPCLOSE=1", DEFAULT_TIMEOUT, NULL);
-    if ((NULL != strstr(resp_buf, "CLOSE OK")) ||
-        (NULL != strstr(resp_buf, "ERROR"))) { // If TCP not opened previously
+    // Close TCP connection on session 0
+    send_cmd("AT+CCHCLOSE=0", 1000, "+CCHCLOSE: 0,0");
+    // If successful close or TCP not opened previously
+    if (ack_received || (NULL != strstr(resp_buf, "ERROR"))) {
         return MODEM_RESPONSE_OK;
     }
     return MODEM_RESPONSE_ERROR; // Invalid
@@ -702,9 +978,24 @@ int UARTmodem::detach_gprs(void)
     return MODEM_RESPONSE_OK;
 }
 
-int UARTmodem::disable_bearer(void)
+int SIM800::disable_bearer(void)
 {
-    send_cmd("AT+SAPBR=0,1", 600, "OK"); // Up to 65 seconds
+    send_cmd("AT+SAPBR=0,1", 1000, "OK");
+    // Can take up to 65 seconds but we dont really
+    // care about error response so dont wait
+    if (ack_received == false) {
+        return MODEM_RESPONSE_ERROR;
+    }
+    // If the response is as expected
+    return MODEM_RESPONSE_OK;
+}
+
+int A7672::disable_bearer(void)
+{
+    // Disable the PDP context for connection ID 1
+    // NOTE: this is not possible for LTE cat 1-12
+    // as the bearer is always active by default
+    send_cmd("AT+CGACT=0,1", 1000, "OK");
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
@@ -722,7 +1013,7 @@ void UARTmodem::powerdown(void)
     send_cmd("AT+CPOWD=0", DEFAULT_TIMEOUT, NULL, true);
 }
 
-int UARTmodem::send_tcp_data(const void *data, size_t len)
+int SIM800::send_tcp_data(const void *data, size_t len)
 {
     char cmd[64];
     this->tcp_send_len += len;
@@ -801,6 +1092,39 @@ int UARTmodem::send_tcp_data(const void *data, size_t len)
 #endif
 }
 
+int A7672::send_tcp_data(const void *data, size_t len)
+{
+    char cmd[64];
+    this->tcp_send_len += len;
+
+    // Send len bytes using session ID 0
+    snprintf(cmd, sizeof(cmd), "AT+CCHSEND=0,%d", len);
+    send_cmd(cmd, 900, ">");
+    if (ack_received == false) {
+        return MODEM_RESPONSE_ERROR;
+    }
+
+    // Send data
+    for (size_t i = 0; i < len; i++) {
+        uart_poll_out(modem_dev, ((char *)data)[i]);
+    }
+    prepare_for_rx(120000, "+CCHSEND: 0,0");
+
+    // Sleep in 20ms slices until we get the ack back.
+    int wait_count = 120000 / 20;
+    while (wait_count--) {
+        k_sleep(K_MSEC(20));
+        if (ack_received){
+            break;
+        }
+    }
+
+    if (!ack_received) {
+        return MODEM_RESPONSE_ERROR;
+    }
+    return MODEM_RESPONSE_OK;
+}
+
 void UARTmodem::clear_buffer(void)
 {
     // For non-buffered serial, even one getc would be enough...
@@ -839,7 +1163,7 @@ int UARTmodem::delete_file(const char *file_name)
     return MODEM_RESPONSE_OK;
 }
 
-int UARTmodem::ftp_init(const char *server, const char *user, const char *pw, const char *file_name,
+int SIM800::ftp_init(const char *server, const char *user, const char *pw, const char *file_name,
                     const char *file_path)
 {
     char cmd[64];
@@ -883,41 +1207,38 @@ int UARTmodem::ftp_init(const char *server, const char *user, const char *pw, co
     return MODEM_RESPONSE_OK;
 }
 
-int UARTmodem::ftp_get(const char *server, const char *user, const char *pw, const char *file_name,
+int A7672::ftp_init(const char *server, const char *user, const char *pw, const char *file_name,
                     const char *file_path)
 {
-    char cmd[64];
-
-    if (ftp_init(server, user, pw, file_name, file_path) != MODEM_RESPONSE_OK) {
+    // Start FTP using existing bearer config
+    send_cmd("AT+CFTPSSTART", 9000, "+CFTPSSTART: 0");
+    if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
 
-    snprintf(cmd, sizeof(cmd), "AT+FTPGETTOFS=0,\"%s\"", file_name);
-    send_cmd(cmd, 400, NULL); // More than 1 minute for response?
+    // Login to server with credentials
+    char cmd[64];
+    snprintf(cmd, sizeof(cmd), "AT+CFTPSLOGIN=\"%s\",21,\"%s\",\"%s\",0",
+             server, user, pw);
+    send_cmd(cmd, 9000, "+CFTPSLOGIN: 0");
+    if (ack_received == false) {
+        return MODEM_RESPONSE_ERROR;
+    }
 
     // If the response is as expected
     return MODEM_RESPONSE_OK;
 }
 
-int UARTmodem::read_ftp_file(const char *file_name, int length, int offset)
-{
-    char cmd[64];
-    snprintf(cmd, sizeof(cmd), "AT+FSREAD=C:\\User\\FTP\\%s,1,%d,%d", file_name, length, offset);
-    send_cmd(cmd, 500, NULL);
-
-    return MODEM_RESPONSE_OK;
-}
-
-int UARTmodem::ftp_get_to_ram(const char *server, const char *user, const char *pw,
-                         const char *file_name, const char *file_path)
+int SIM800::ftp_get_ota(const char *server, const char *user, const char *pw,
+                        const char *file_name, const char *file_path)
 {
     if (ftp_init(server, user, pw, file_name, file_path) != MODEM_RESPONSE_OK) {
         return MODEM_RESPONSE_ERROR;
     }
 
     // Open the FTP session
-    send_cmd("AT+FTPEXTGET=1", DEFAULT_TIMEOUT, NULL);
-    if (NULL == strstr(resp_buf, "OK")) {
+    send_cmd("AT+FTPEXTGET=1", DEFAULT_TIMEOUT, "OK");
+    if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
     // The caller needs to wait until the response "+FTPEXTGET: 1,0"
@@ -928,12 +1249,75 @@ int UARTmodem::ftp_get_to_ram(const char *server, const char *user, const char *
     return MODEM_RESPONSE_OK;
 }
 
-int UARTmodem::ftp_get_ram_filesize(void)
+int A7672::ftp_get_ota(const char *server, const char *user, const char *pw,
+                        const char *file_name, const char *file_path)
+{
+    if (ftp_init(server, user, pw, file_name, file_path) != MODEM_RESPONSE_OK) {
+        return MODEM_RESPONSE_ERROR;
+    }
+
+    // Open the FTP session
+    char cmd[32];
+    snprintf(cmd, sizeof(cmd), "AT+CFTPSGETFILE=\"%s%s\"",
+             file_name, file_path);
+
+    // Up to 90s for the download to finish
+    // Specify no wait to return to caller
+    send_cmd(cmd, 90000, "+CFTPSGETFILE: 0", true);
+
+    // Wait a short time to check there was no immediate error
+    k_sleep(K_MSEC(50));
+    if (NULL == strstr(resp_buf, "OK")) {
+        return MODEM_RESPONSE_ERROR;
+    }
+
+    // The caller needs to wait until the response "+CFTPSGETFILE: 0"
+    // is received, which indicates that the downloading is
+    // successful.
+    return MODEM_RESPONSE_OK;
+}
+
+int SIM800::ftp_dl_cplt(const char *file_name) {
+    // check for download complete string
+    if (NULL == strstr(resp_buf, "+FTPEXTGET: 1,0")) {
+        // check for any non-zero return code or error
+        if (NULL != strstr(resp_buf, "+FTPEXTGET:") ||
+            NULL != strstr(resp_buf, "+CME ERROR:")) {
+                return -1;
+        }
+        return 1;
+    }
+    return 0;
+}
+
+int A7672::ftp_dl_cplt(const char *file_name) {
+    // check for download complete string
+    if (NULL == strstr(resp_buf, "+CFTPSGETFILE: 0")) {
+        // check for any non-zero return code or error
+        if (NULL != strstr(resp_buf, "+CFTPSGETFILE:") ||
+            NULL != strstr(resp_buf, "ERROR")) {
+                return -1;
+        }
+        return 1;
+    }
+
+    // rename the downloaded file to ota.bin
+    char cmd[64];
+    snprintf(cmd, sizeof(cmd), "AT+FSRENAME=\"%s\",\"ota.bin\"", file_name);
+    send_cmd(cmd, 9000, "OK");
+    if (ack_received == false) {
+        return -1;
+    }
+
+    return 0;
+}
+
+int SIM800::ftp_ota_filesize(void)
 {
     int file_size = 0;
-    send_cmd("AT+FTPEXTGET?", DEFAULT_TIMEOUT, NULL);
+    send_cmd("AT+FTPEXTGET?", 1000, "OK");
 
-    // The response should ideally be like, +FTPEXTGET: 1,108944
+    // The response should ideally be like, +FTPEXTGET: 1,108944... OK
     char *ptr = strstr(resp_buf, "+FTPEXTGET: 1,");
     if (ptr == NULL) {
         return MODEM_RESPONSE_ERROR;
@@ -943,7 +1327,20 @@ int UARTmodem::ftp_get_ram_filesize(void)
     return file_size;
 }
 
-int UARTmodem::ftp_read_from_ram(int length, int offset)
+int A7672::ftp_ota_filesize(void)
+{
+    int file_size = 0;
+    send_cmd("AT+FSATTRI=\"ota.bin\"", 1000, "OK");
+
+    if (ack_received == false) {
+        return MODEM_RESPONSE_ERROR;
+    }
+    // Success
+    sscanf(resp_buf, "+FSATTRI: %d,", &file_size);
+    return file_size;
+}
+
+int SIM800::ftp_read_ota(int length, int offset)
 {
     char cmd[64];
     snprintf(cmd, sizeof(cmd), "AT+FTPEXTGET=3,%d,%d", offset, length);
@@ -956,10 +1353,31 @@ int UARTmodem::ftp_read_from_ram(int length, int offset)
     }
 }
 
-int UARTmodem::ftp_end_session(void)
+int A7672::ftp_read_ota(int length, int offset)
+{
+    char cmd[64];
+    snprintf(cmd, sizeof(cmd), "AT+CFTRANTX=\"c:/ota.bin\",%d,%d",
+            offset, length);
+    send_cmd(cmd, FTP_READ_WAIT, NULL);
+    if (strip_modem_response(length) > 0) {
+        return MODEM_RESPONSE_OK;
+    }
+    else {
+        return MODEM_RESPONSE_ERROR;
+    }
+}
+
+int SIM800::ftp_end_session(void)
 {
     send_cmd("AT+FTPEXTGET=0", DEFAULT_TIMEOUT, "OK");
 
+    return MODEM_RESPONSE_OK;
+}
+
+int A7672::ftp_end_session(void)
+{
+    send_cmd("AT+CFTPSLOGOUT", DEFAULT_TIMEOUT, "OK");
+    send_cmd("AT+CFTPSSTOP", DEFAULT_TIMEOUT, "OK");
     return MODEM_RESPONSE_OK;
 }
 
