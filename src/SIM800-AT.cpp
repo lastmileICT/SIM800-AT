@@ -705,12 +705,12 @@ int SIM800::enable_get_data_manually(void)
 
 int A7672::enable_get_data_manually(void)
 {
-    send_cmd("AT+CCHMODE=0", 9000, "OK");
+    send_cmd("AT+CCHMODE=0", 1000, "OK");
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
 
-    send_cmd("AT+CCHSET=1,1", 9000, "OK");
+    send_cmd("AT+CCHSET=1,1", 1000, "OK");
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
@@ -739,7 +739,7 @@ int SIM800::pdp_open(const char* apn, const char* user, const char* pass)
 
 int A7672::pdp_open(const char* apn, const char* user, const char* pass)
 {
-    send_cmd("AT+CCHSTART", 120000, "+CCHSTART: 0"); // Upto 120 seconds
+    send_cmd("AT+CCHSTART", 10000, "+CCHSTART: 0"); // Upto 120 seconds
     if (ack_received == false) {
         //NB. can return ERROR if already open, unhelpful
         return MODEM_RESPONSE_ERROR;
@@ -828,7 +828,7 @@ int A7672::connect_tcp(const char *domain, const char *port)
 
     // Use and check against session ID 0 (first parameter)
     sprintf(cmd, "AT+CCHOPEN=0,\"%s\",%s,%d", domain, port, client_type);
-    send_cmd(cmd, 120000, "+CCHOPEN: 0,0");
+    send_cmd(cmd, 10000, "+CCHOPEN: 0,0");
     if (ack_received) {
         return MODEM_RESPONSE_OK;
     }
@@ -883,7 +883,7 @@ int A7672::ip_rx_data(void)
 
     uint8_t retries = 0;
     while((tcp_packet_len != tcp_avail) && (retries++ < 10)) {
-        send_cmd("AT+CCHRECV?", 120000, "OK");
+        send_cmd("AT+CCHRECV?", 5000, "OK");
         // ACK string position varies between 2 and three characters
         // with mixed whitespace so we can't sscanf for it properly.
         char *ack_pos = strstr(resp_buf, "+CCHRECV:");
@@ -936,7 +936,7 @@ int SIM800::pdp_close(void)
 int A7672::pdp_close(void)
 {
     // Close the PDP context.
-    send_cmd("AT+CCHSTOP", 120000, "OK");
+    send_cmd("AT+CCHSTOP", 10000, "OK");
     if (ack_received == false) {
         return MODEM_RESPONSE_ERROR;
     }
@@ -1108,10 +1108,10 @@ int A7672::send_tcp_data(const void *data, size_t len)
     for (size_t i = 0; i < len; i++) {
         uart_poll_out(modem_dev, ((char *)data)[i]);
     }
-    prepare_for_rx(120000, "+CCHSEND: 0,0");
+    prepare_for_rx(3000, "+CCHSEND: 0,0");
 
     // Sleep in 20ms slices until we get the ack back.
-    int wait_count = 120000 / 20;
+    int wait_count = 3000 / 20;
     while (wait_count--) {
         k_sleep(K_MSEC(20));
         if (ack_received){
