@@ -48,15 +48,15 @@ public:
 
     const struct device *modem_dev;
     USART_TypeDef *UART_PERIPH;
+    DMA_TypeDef *DMA_PERIPH;
     char ack_message[16];
     size_t len_ack;
     int time_out = DEFAULT_TIMEOUT;
-    uint32_t time_initial;
-    uint16_t actual_ack_num_bytes;
-    volatile size_t current_index = 0;
+
     volatile bool ack_received = false;
 
     UARTmodem(uint8_t *rx_buf, size_t rx_buf_size);
+    void ack_check();
 
     /** Set / reset the reception buffer. Ideally should be executed when no RX is in progress.
      *  @param buf Pointer to the buffer that will store the received UART data.

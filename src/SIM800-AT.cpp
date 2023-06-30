@@ -24,12 +24,18 @@
 #include <string.h>
 #include <time.h>
 #include <inttypes.h>
+
+#include "uart_dma_driver.h"
+
 #include <logging/log.h>
 LOG_MODULE_REGISTER(sim800, CONFIG_GSM_LOG_LEVEL);
 
 #define UART_GSM DT_LABEL(DT_ALIAS(uart_gsm))
 #define UART_GSM_BASE_ADDR DT_REG_ADDR(DT_ALIAS(uart_gsm))
 #define UART_GSM_SPEED DT_PROP(DT_ALIAS(uart_gsm), current_speed)
+#define UART_GSM_DMA_BASE_ADDR DT_REG_ADDR(DT_PHANDLE_BY_NAME(DT_ALIAS(uart_gsm), dmas, rx))
+#define UART_GSM_DMA_CHANNEL DT_PHA_BY_NAME(DT_ALIAS(uart_gsm), dmas, rx, channel)
+#define UART_GSM_DMA_SLOT DT_PHA_BY_NAME(DT_ALIAS(uart_gsm), dmas, rx, slot)
 #ifndef GSM_MAX_RX_BUF
 #define GSM_MAX_RX_BUF 150
 #endif
@@ -40,58 +46,15 @@ LOG_MODULE_REGISTER(sim800, CONFIG_GSM_LOG_LEVEL);
 // where the 1.44 = 36/25 term is a safety offset ratio.
 #define FTP_READ_WAIT int((36 * GSM_MAX_RX_BUF * 8000 / (31 * UART_GSM_SPEED)) + 30)
 
-void irq_handler(const struct device *dev, void* user_data)
-{
-    char c;
-    bool done = false;
-    UARTmodem *modem = (UARTmodem *)user_data;
-
-    modem->UART_PERIPH->CR1 &= ~(USART_CR1_RXNEIE); // disable receive interrupts
-
-    // Timer expired or buffer length reached ? There is always one
-    // byte reserved for '\0'.
-    if ((modem->current_index == modem->resp_buf_len - 1) \
-        || (k_uptime_get() - modem->time_initial) > modem->time_out) {
-        // RX interrupts will stay disabled !
-        modem->resp_buf[modem->current_index] = '\0';
-        return;
-    }
-
-    c = modem->resp_buf[modem->current_index] = (char)(modem->UART_PERIPH->RDR);
-    //USART1->TDR = c; // Debug aid: print incoming data to the console
-    modem->current_index++;
-
-    if (modem->len_ack != 0) { // ACK check required ?
-        if (c == modem->ack_message[modem->actual_ack_num_bytes]) {
-            modem->actual_ack_num_bytes++;
-        } else {
-            modem->actual_ack_num_bytes = 0;
-        }
-
-        if (modem->actual_ack_num_bytes == modem->len_ack) {
-            // Acknowledgement string received
-            modem->ack_received = true;
-            modem->resp_buf[modem->current_index] = '\0';
-            done = true;
-        }
-    }
-
-    modem->UART_PERIPH->RQR |= USART_RQR_RXFRQ; // clear RXNE again
-    // clear overrun, framing, parity, noise errors
-    modem->UART_PERIPH->ICR |= (USART_ICR_ORECF | USART_ICR_PECF
-                    | USART_ICR_FECF | USART_ICR_NCF);
-    if (!done) {
-        modem->UART_PERIPH->CR1 |= USART_CR1_RXNEIE; // enable receive interrupts
-    }
-}
-
 // Base constructor sets up basic requirements for UART
 UARTmodem::UARTmodem(uint8_t *rx_buf, size_t rx_buf_size)
 {
     UART_PERIPH = (USART_TypeDef *)(UART_GSM_BASE_ADDR);
     modem_dev = device_get_binding(UART_GSM);
-    uart_irq_callback_user_data_set(modem_dev, irq_handler, this);
+    DMA_PERIPH = (DMA_TypeDef *)(UART_GSM_DMA_BASE_ADDR);
     this->set_rx_buf(rx_buf, rx_buf_size);
+    uart_dma_init_rx(DMA_PERIPH, UART_PERIPH, resp_buf,
+                    UART_GSM_DMA_CHANNEL, UART_GSM_DMA_SLOT);
 }
 
 // Inherited constructor calls base constructor
@@ -155,25 +118,35 @@ void UARTmodem::set_rx_buf(uint8_t *buf, size_t len)
     resp_buf_len = len;
 }
 
+// See if the ack has been put in the buffer by the DMA
+void UARTmodem::ack_check() {
+    if (len_ack != 0) {
+        if (strstr(resp_buf, ack_message) != NULL) {
+            ack_received = true;
+        }
+    }
+}
+
 void UARTmodem::send_cmd(const char *cmd, size_t timeout, const char *ack,
                     bool no_wait /*=false*/)
 {
     //LOG_DBG("send: %s\n",cmd);
+
+    prepare_for_rx(timeout, ack);
     for (int i = 0; i < (int)strlen(cmd); i++) {
         uart_poll_out(modem_dev, cmd[i]);
     }
     uart_poll_out(modem_dev, '\r');
     uart_poll_out(modem_dev, '\n');
-    // Prepare for processing in the receive interrupt
-    prepare_for_rx(timeout, ack);
 
     // Some commands can specify a timeout but don't want to wait for
     // the ack
     if (!no_wait) {
-        // Sleep in 20ms slices until we get the ack back.
-        int wait_count = timeout / 20;
+        // Sleep in 50ms slices until we get the ack back.
+        int wait_count = timeout / 50;
         while (wait_count--) {
-            k_sleep(K_MSEC(20));
+            k_sleep(K_MSEC(50));
+            ack_check();
             if (ack_received){
                 break;
             }
@@ -181,14 +154,18 @@ void UARTmodem::send_cmd(const char *cmd, size_t timeout, const char *ack,
     }
 }
 
-// Call this only after sending a command to the SIM800.
-// Resets the necessary variables and enables the Rx interrupt
+// Clear the rx buffer and reconfigure the DMA. Use just before
+// sending a command to the modem.
 void UARTmodem::prepare_for_rx(size_t timeout, const char *ack)
 {
-    uart_irq_rx_disable(modem_dev);
+    uart_dma_rx_stop(DMA_PERIPH, UART_PERIPH, UART_GSM_DMA_CHANNEL);
+
+    // Clear the old ack info
     ack_message[0] = '\0';
-    // Make the ack_message configurable
     len_ack = 0;
+    ack_received = false;
+
+    // Set up the new ack
     if (ack != NULL) {
         len_ack = strlen(ack);
     }
@@ -197,14 +174,12 @@ void UARTmodem::prepare_for_rx(size_t timeout, const char *ack)
     }
     memset(resp_buf, 0, resp_buf_len);
 
-    ack_received = false;
+    // No longer used. Could be used to stop the DMA RX
+    // but there is no real need since there is no performance hit.
     time_out = timeout;
-    time_initial = k_uptime_get(); // Set the initial value for timeout check
-    current_index = 0;  // Do this here instead of doing in the ISR. This to handle a special case,
-                        // when the modem response comes faster and NULL is used as an Ack string.
-    resp_buf[0] = '\0';
-    actual_ack_num_bytes = 0;
-    uart_irq_rx_enable(modem_dev);
+
+    uart_dma_rx_start(DMA_PERIPH, UART_PERIPH,
+                        resp_buf, resp_buf_len, UART_GSM_DMA_CHANNEL);
 }
 
 // simple AT -> OK serial comm test
@@ -1041,10 +1016,11 @@ int SIM800::send_tcp_data(const void *data, size_t len)
     prepare_for_rx(3000, "SEND OK");
 #endif
 
-    // Sleep in 20ms slices until we get the ack back.
-    int wait_count = 3000 / 20;
+    // Sleep in 50ms slices until we get the ack back.
+    int wait_count = 3000 / 50;
     while (wait_count--) {
-        k_sleep(K_MSEC(20));
+        k_sleep(K_MSEC(50));
+        ack_check();
         if (ack_received){
             break;
         }
@@ -1110,10 +1086,11 @@ int A7672::send_tcp_data(const void *data, size_t len)
     }
     prepare_for_rx(3000, "+CCHSEND: 0,0");
 
-    // Sleep in 20ms slices until we get the ack back.
-    int wait_count = 3000 / 20;
+    // Sleep in 50ms slices until we get the ack back.
+    int wait_count = 3000 / 50;
     while (wait_count--) {
-        k_sleep(K_MSEC(20));
+        k_sleep(K_MSEC(50));
+        ack_check();
         if (ack_received){
             break;
         }
