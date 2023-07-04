@@ -36,15 +36,6 @@ LOG_MODULE_REGISTER(sim800, CONFIG_GSM_LOG_LEVEL);
 #define UART_GSM_DMA_BASE_ADDR DT_REG_ADDR(DT_PHANDLE_BY_NAME(DT_ALIAS(uart_gsm), dmas, rx))
 #define UART_GSM_DMA_CHANNEL DT_PHA_BY_NAME(DT_ALIAS(uart_gsm), dmas, rx, channel)
 #define UART_GSM_DMA_SLOT DT_PHA_BY_NAME(DT_ALIAS(uart_gsm), dmas, rx, slot)
-#ifndef GSM_MAX_RX_BUF
-#define GSM_MAX_RX_BUF 150
-#endif
-// The delay below has to be scaled with the flash page size in the
-// MCU, which in general is the largest RX buffer we're going to
-// get. General formula for wait times in milliseconds would be:
-// `delay_per_buffer = 1.44 * (sizeof(buffer) * 8000 / serial_bps)`,
-// where the 1.44 = 36/25 term is a safety offset ratio.
-#define FTP_READ_WAIT int((36 * GSM_MAX_RX_BUF * 8000 / (31 * UART_GSM_SPEED)) + 30)
 
 // Base constructor sets up basic requirements for UART
 UARTmodem::UARTmodem(uint8_t *rx_buf, size_t rx_buf_size)
@@ -73,7 +64,7 @@ A7672::A7672(uint8_t *rx_buf, size_t rx_buf_size)
 
 // Strips the modem response and moves the following count bytes to the
 // start of the response buffer. Returns count bytes stripped.
-size_t SIM800::strip_modem_response(size_t count)
+size_t SIM800::strip_modem_response(size_t count, const char* resp)
 {
     // The modem response is enclosed between two CR-LF
     // sequences. Look for the second occurence of CR LF starting from
@@ -90,15 +81,16 @@ size_t SIM800::strip_modem_response(size_t count)
     return 0;
 }
 
-// Strips the modem response and moves the following count bytes to the
-// start of the response buffer. Returns count bytes stripped.
-size_t A7672::strip_modem_response(size_t count)
+// Strips the modem response up to the end of the line containing resp.
+// Returns count bytes stripped.
+size_t A7672::strip_modem_response(size_t count, const char* resp)
 {
-    char *ack_pos = strstr(resp_buf, "+CCHRECV:");
+    char *ack_pos = strstr(resp_buf, resp);
+    if (ack_pos == NULL) { return 0; }
     size_t pos = (size_t)(ack_pos - resp_buf);
 
-    // The TCP data follows on the next line, so search
-    // for the new line sequence
+    // Search for a newline and move the memory after it to
+    // the start of the buffer
     for (; pos <= resp_buf_len - 2; pos++) {
         if (resp_buf[pos] == 0x0D && resp_buf[pos + 1] == 0x0A) {
             if ((count + pos) > resp_buf_len) {
@@ -142,10 +134,10 @@ void UARTmodem::send_cmd(const char *cmd, size_t timeout, const char *ack,
     // Some commands can specify a timeout but don't want to wait for
     // the ack
     if (!no_wait) {
-        // Sleep in 50ms slices until we get the ack back.
-        int wait_count = timeout / 50;
+        // Sleep in 20ms slices until we get the ack back.
+        int wait_count = timeout / 20;
         while (wait_count--) {
-            k_sleep(K_MSEC(50));
+            k_sleep(K_MSEC(20));
             ack_check();
             if (ack_received){
                 break;
@@ -843,7 +835,7 @@ int SIM800::ip_rx_data(void)
     int timeout = tcp_packet_len + 55;
     send_cmd(cmd, timeout, NULL);
 
-    size_t wasted = strip_modem_response(tcp_packet_len);
+    size_t wasted = strip_modem_response(tcp_packet_len, NULL);
     if (tcp_packet_len > (resp_buf_len - wasted)) {
         tcp_packet_len = resp_buf_len - wasted;
     }
@@ -890,7 +882,7 @@ int A7672::ip_rx_data(void)
         return 0;
     }
 
-    size_t wasted = strip_modem_response(tcp_packet_len);
+    size_t wasted = strip_modem_response(tcp_packet_len, "+CCHRECV:");
     if (tcp_packet_len > (resp_buf_len - wasted)) {
         tcp_packet_len = resp_buf_len - wasted;
     }
@@ -1016,10 +1008,10 @@ int SIM800::send_tcp_data(const void *data, size_t len)
     prepare_for_rx(3000, "SEND OK");
 #endif
 
-    // Sleep in 50ms slices until we get the ack back.
-    int wait_count = 3000 / 50;
+    // Sleep in 20ms slices until we get the ack back.
+    int wait_count = 3000 / 20;
     while (wait_count--) {
-        k_sleep(K_MSEC(50));
+        k_sleep(K_MSEC(20));
         ack_check();
         if (ack_received){
             break;
@@ -1086,10 +1078,10 @@ int A7672::send_tcp_data(const void *data, size_t len)
     }
     prepare_for_rx(3000, "+CCHSEND: 0,0");
 
-    // Sleep in 50ms slices until we get the ack back.
-    int wait_count = 3000 / 50;
+    // Sleep in 20ms slices until we get the ack back.
+    int wait_count = 3000 / 20;
     while (wait_count--) {
-        k_sleep(K_MSEC(50));
+        k_sleep(K_MSEC(20));
         ack_check();
         if (ack_received){
             break;
@@ -1126,18 +1118,15 @@ int UARTmodem::reset(void)
     return MODEM_RESPONSE_OK;
 }
 
-int UARTmodem::delete_file(const char *file_name)
+// Delete a file in the modem file system root
+void UARTmodem::delete_file(const char *file_name)
 {
-    // Delete the existing file in the SIM800 memory
     char cmd[64];
-    snprintf(cmd, sizeof(cmd), "AT+FSDEL=C:\\User\\FTP\\%s", file_name);
+    snprintf(cmd, sizeof(cmd), "AT+FSDEL=\"%s\"", file_name);
 
     send_cmd(cmd, 400, "OK");
-    if (ack_received == false) {
-        return MODEM_RESPONSE_ERROR;
-    }
-    // If the response is as expected
-    return MODEM_RESPONSE_OK;
+    // dont care about errors, as if the file doesnt exist
+    // this is an error, but the desired outcome
 }
 
 int SIM800::ftp_init(const char *server, const char *user, const char *pw, const char *file_name,
@@ -1194,7 +1183,7 @@ int A7672::ftp_init(const char *server, const char *user, const char *pw, const 
     }
 
     // Login to server with credentials
-    char cmd[64];
+    char cmd[100];
     snprintf(cmd, sizeof(cmd), "AT+CFTPSLOGIN=\"%s\",21,\"%s\",\"%s\",0",
              server, user, pw);
     send_cmd(cmd, 9000, "+CFTPSLOGIN: 0");
@@ -1234,9 +1223,9 @@ int A7672::ftp_get_ota(const char *server, const char *user, const char *pw,
     }
 
     // Open the FTP session
-    char cmd[32];
+    char cmd[100];
     snprintf(cmd, sizeof(cmd), "AT+CFTPSGETFILE=\"%s%s\"",
-             file_name, file_path);
+             file_path, file_name);
 
     // Up to 90s for the download to finish
     // Specify no wait to return to caller
@@ -1279,13 +1268,14 @@ int A7672::ftp_dl_cplt(const char *file_name) {
     }
 
     // rename the downloaded file to ota.bin
+    delete_file("ota.bin");
     char cmd[64];
     snprintf(cmd, sizeof(cmd), "AT+FSRENAME=\"%s\",\"ota.bin\"", file_name);
     send_cmd(cmd, 9000, "OK");
     if (ack_received == false) {
         return -1;
     }
-
+    delete_file(file_name);
     return 0;
 }
 
@@ -1313,7 +1303,7 @@ int A7672::ftp_ota_filesize(void)
         return MODEM_RESPONSE_ERROR;
     }
     // Success
-    sscanf(resp_buf, "+FSATTRI: %d,", &file_size);
+    sscanf(resp_buf, " +FSATTRI: %d", &file_size);
     return file_size;
 }
 
@@ -1321,8 +1311,10 @@ int SIM800::ftp_read_ota(int length, int offset)
 {
     char cmd[64];
     snprintf(cmd, sizeof(cmd), "AT+FTPEXTGET=3,%d,%d", offset, length);
-    send_cmd(cmd, FTP_READ_WAIT, NULL);
-    if (strip_modem_response(length) > 0) {
+    // Previous "clever" scaling of the read wait didnt work once the baud
+    // became 115200, and it was very empirical anyway.
+    send_cmd(cmd, 90, NULL);
+    if (strip_modem_response(length, NULL) > 0) {
         return MODEM_RESPONSE_OK;
     }
     else {
@@ -1335,8 +1327,10 @@ int A7672::ftp_read_ota(int length, int offset)
     char cmd[64];
     snprintf(cmd, sizeof(cmd), "AT+CFTRANTX=\"c:/ota.bin\",%d,%d",
             offset, length);
-    send_cmd(cmd, FTP_READ_WAIT, NULL);
-    if (strip_modem_response(length) > 0) {
+    // cant rely on +CFTRANTX: 0 ack as strstr will not find it if the
+    // OTA data contains a \0 character
+    send_cmd(cmd, 90, NULL);
+    if (strip_modem_response(length, "+CFTRANTX:") > 0) {
         return MODEM_RESPONSE_OK;
     }
     else {
@@ -1353,8 +1347,8 @@ int SIM800::ftp_end_session(void)
 
 int A7672::ftp_end_session(void)
 {
-    send_cmd("AT+CFTPSLOGOUT", DEFAULT_TIMEOUT, "OK");
-    send_cmd("AT+CFTPSSTOP", DEFAULT_TIMEOUT, "OK");
+    send_cmd("AT+CFTPSLOGOUT", 500, NULL);
+    send_cmd("AT+CFTPSSTOP", DEFAULT_TIMEOUT, NULL);
     return MODEM_RESPONSE_OK;
 }
 

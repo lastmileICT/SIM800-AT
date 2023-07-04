@@ -144,7 +144,7 @@ public:
      */
     virtual int ip_rx_data(void) = 0;
 
-    virtual size_t strip_modem_response(size_t count) = 0;
+    virtual size_t strip_modem_response(size_t count, const char* resp) = 0;
 
     /**
      * Check the current bearer status sending the command "AT+SAPBR=2,1"
@@ -184,10 +184,10 @@ public:
                          const char *file_name, const char *file_path) = 0;
 
     /**
-     * Remove the existing file in the SIM800 flash.
+     * Remove the existing file in the modem filesystem root.
      * @param file_name The file name to be deleted.
      */
-    int delete_file(const char *file_name);
+    void delete_file(const char *file_name);
 
     /**
      * Implements the FTP get functionality to download a file from an FTP server using
@@ -413,7 +413,7 @@ private:
      * @param count The number of bytes after the strip to move to start
      * @return The number of bytes stripped
      */
-    size_t strip_modem_response(size_t count);
+    size_t strip_modem_response(size_t count, const char* resp);
 };
 
 class A7672 : public UARTmodem {
@@ -575,7 +575,7 @@ private:
      * @param count The number of bytes after the strip to move to start
      * @return The number of bytes stripped
      */
-    size_t strip_modem_response(size_t count);
+    size_t strip_modem_response(size_t count, const char* resp);
 };
 
 #endif /* UNIT_TEST */
