@@ -26,9 +26,8 @@
 #if defined(__ZEPHYR__)
 #include <zephyr.h>
 #endif
-#ifdef CONFIG_SOC_SERIES_STM32L0X
-#include "stm32l072xx.h" // For the USART_TypeDef declaration
-#endif
+
+#include "mcu.h" // For USART/DMA TypeDefs
 
 #define DEFAULT_TIMEOUT 50
 #define MODEM_RESPONSE_OK 0
