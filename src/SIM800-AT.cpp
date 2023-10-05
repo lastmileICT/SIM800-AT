@@ -122,7 +122,7 @@ void UARTmodem::ack_check() {
 void UARTmodem::send_cmd(const char *cmd, size_t timeout, const char *ack,
                     bool no_wait /*=false*/)
 {
-    //LOG_DBG("send: %s\n",cmd);
+    // LOG_DBG("send: %s",cmd);
 
     prepare_for_rx(timeout, ack);
     for (int i = 0; i < (int)strlen(cmd); i++) {
@@ -143,6 +143,7 @@ void UARTmodem::send_cmd(const char *cmd, size_t timeout, const char *ack,
                 break;
             }
         }
+        // LOG_DBG("recv: %s",resp_buf);
     }
 }
 
@@ -256,11 +257,16 @@ int UARTmodem::wakeup(void)
 int UARTmodem::check_pin(void)
 {
     send_cmd("AT+CPIN?", 9000, "PIN: READY");
-    if (ack_received == false) {
+    if (ack_received) {
+        return MODEM_RESPONSE_OK;
+    }
+    else if (NULL != strstr(resp_buf, "not insert")) {
+        return MODEM_CME_ERROR;
+    }
+    else {
+        // Likely the SIM is locked
         return MODEM_RESPONSE_ERROR;
     }
-    // If the response is as expected
-    return MODEM_RESPONSE_OK;
 }
 
 int SIM800::set_pin(const char* pin)
@@ -774,7 +780,7 @@ int SIM800::connect_tcp(const char *domain, const char *port)
     this->tcp_send_len = 0;
     sprintf(cmd, "AT+CIPSTART=TCP,%s,%s", domain, port);
     send_cmd(cmd, 5000, "CONNECT OK");
-    if (ack_received) {
+    if (ack_received || (NULL != strstr(resp_buf, "ALREADY CONNECT"))) {
 #ifdef CONFIG_SIM800_TCP_QUICKSEND
         // If configured, set the SIM800 to support TCP quicksend - in
         // which the data stream length is not declared upfront, but
