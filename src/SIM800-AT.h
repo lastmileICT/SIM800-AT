@@ -68,6 +68,7 @@ public:
     int wakeup(void);
     int check_pin(void);
     virtual int set_pin(const char* pin) = 0;
+    virtual int get_iccid(char *buf) = 0;
     int check_ssl_cert(const char *filename, int filesize);
     int load_ssl(const char *filename, const char *cert, int filesize);
     int ssl_set_cert(const char *filename);
@@ -258,6 +259,7 @@ public:
 
     int init();
     int set_pin(const char* pin);
+    int get_iccid(char *buf);
     int network_registration_lte();
     int get_connection_info();
 
@@ -421,6 +423,7 @@ public:
 
     int init();
     int set_pin(const char* pin);
+    int get_iccid(char *buf);
     int network_registration_lte();
     int get_connection_info();
 

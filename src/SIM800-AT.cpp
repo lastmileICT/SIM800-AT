@@ -293,6 +293,28 @@ int A7672::set_pin(const char* pin)
     return MODEM_RESPONSE_OK;
 }
 
+int SIM800::get_iccid(char* buf)
+{
+    send_cmd("AT+CCID", 2000, "OK");
+    if (ack_received == false) {
+        return MODEM_RESPONSE_ERROR;
+    }
+    sscanf(resp_buf, "%s", buf);
+    // If the response is as expected
+    return MODEM_RESPONSE_OK;
+}
+
+int A7672::get_iccid(char* buf)
+{
+    send_cmd("AT+CICCID", 9000, "OK");
+    if (ack_received == false) {
+        return MODEM_RESPONSE_ERROR;
+    }
+
+    sscanf(resp_buf, " +ICCID: %s", buf);
+    return MODEM_RESPONSE_OK;
+}
+
 int UARTmodem::check_ssl_cert(const char *filename, int filesize)
 {
     char cmd[64];
